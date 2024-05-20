@@ -1,9 +1,13 @@
+mod database;
 mod error;
 mod user;
 use error::Result;
 use user::register;
 mod tests;
-use tokio::net::{self, TcpListener};
+use tokio::{
+    io::AsyncWriteExt,
+    net::{self, TcpListener},
+};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -26,6 +30,9 @@ async fn main() -> Result<()> {
                         let _ = register::register().await; //TODO: 处理注册错误发送到客户端
                         return ();
                     }
+                    Ok(Command::Ping) => {
+                        stream.write_all(b"pong\r\n").await.unwrap();
+                    }
                     Err(_) => unimplemented!("将错误抛给客户端"),
                 }
             }
@@ -38,6 +45,9 @@ async fn to_command(_stream: &mut net::TcpStream) -> Result<Command> {
     unimplemented!("解析客户端发来的数据，解析为具体的命令")
 }
 
-enum Command {
-    Register(String, String), // email, password，一次收发结束
+pub enum Command {
+    /// Ping，用于测试连接
+    Ping,
+    /// email, password
+    Register(String, String),
 }
