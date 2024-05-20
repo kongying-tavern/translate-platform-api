@@ -8,8 +8,13 @@ use tokio::net::{self, TcpListener};
 #[tokio::main]
 async fn main() -> Result<()> {
     println!("log begin"); // TODO: 之后需要换成log库
+
+    // 初始化socket
     let listener = TcpListener::bind("127.0.0.1:6379").await?;
     let mut net_tasks = Vec::new();
+
+    // 初始化数据库
+
     loop {
         //这层循环捕捉链接会话
         let (mut stream, _) = listener.accept().await?;
