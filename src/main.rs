@@ -2,7 +2,7 @@ mod error;
 mod user;
 use error::Result;
 use user::register;
-
+mod tests;
 use tokio::net::{self, TcpListener};
 
 #[tokio::main]
