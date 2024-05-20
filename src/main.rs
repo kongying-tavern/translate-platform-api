@@ -2,12 +2,16 @@ mod database;
 mod error;
 mod user;
 use error::Result;
-use user::register;
+use postgresql_embedded::PostgreSQL;
+use tokio_postgres::NoTls;
+// use user::register; 完了，忘记之前自己写的时候怎么想的了
 mod tests;
 use tokio::{
     io::AsyncWriteExt,
     net::{self, TcpListener},
 };
+
+use database::{create, write};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -18,16 +22,66 @@ async fn main() -> Result<()> {
     let mut net_tasks = Vec::new();
 
     // 初始化数据库
+    let mut postgresql = PostgreSQL::default();
+    postgresql.setup().await.unwrap();
+    postgresql.start().await.unwrap();
+
+    let database_name = "main";
+    postgresql.create_database(database_name).await.unwrap();
+    let settings = postgresql.settings();
+
+    let (client, connection) = tokio_postgres::connect(
+        format!(
+            "host={host} port={port} user={username} password={password}",
+            host = settings.host,
+            port = settings.port,
+            username = settings.username,
+            password = settings.password
+        )
+        .as_str(),
+        NoTls,
+    )
+    .await
+    .unwrap();
+
+    tokio::spawn(async move {
+        if let Err(e) = connection.await {
+            eprintln!("connection error: {}", e);
+        } else {
+            create::create_user_table(&client).await.unwrap();
+        }
+    });
 
     loop {
         //这层循环捕捉链接会话
         let (mut stream, _) = listener.accept().await?;
+        let (client, connection) = tokio_postgres::connect(
+            format!(
+                "host={host} port={port} user={username} password={password}",
+                host = settings.host,
+                port = settings.port,
+                username = settings.username,
+                password = settings.password
+            )
+            .as_str(),
+            NoTls,
+        )
+        .await
+        .unwrap();
+
         net_tasks.push(tokio::spawn(async move {
+            if let Err(e) = connection.await {
+                eprintln!("数据库链接错误: {}", e);
+                stream
+                    .write_all(format!("数据库链接错误: {}", e).as_bytes())
+                    .await
+                    .unwrap();
+            }
             let command = to_command(&mut stream).await;
             loop {
-                match command {
+                match &command {
                     Ok(Command::Register(_, _)) => {
-                        let _ = register::register().await; //TODO: 处理注册错误发送到客户端
+                        write::insert_user(&client, command.unwrap()).await.unwrap();
                         return ();
                     }
                     Ok(Command::Ping) => {

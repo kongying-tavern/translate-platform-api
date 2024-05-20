@@ -4,7 +4,8 @@ use crate::Command;
 
 type Result<T> = std::result::Result<T, Error>;
 
-enum Error {
+#[derive(Debug)]
+pub enum Error {
     Postgres(tokio_postgres::Error),
     WrongCommand,
 }
@@ -20,16 +21,16 @@ impl From<tokio_postgres::Error> for Error {
 //     assert!(matches!(msg, Command::Register(_, _)));
 // }
 
-mod create {
+pub mod create {
     /// 创建用户表
     pub async fn create_user_table(client: &tokio_postgres::Client) -> super::Result<()> {
         client
             .execute(
                 "CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
-                email VARCHAR(255) NOT NULL UNIQUE,
-                password VARCHAR(255) NOT NULL
-            )",
+                    id SERIAL PRIMARY KEY,
+                    email VARCHAR(255) NOT NULL UNIQUE,
+                    password VARCHAR(255) NOT NULL
+                )",
                 &[],
             )
             .await?;
@@ -37,10 +38,10 @@ mod create {
     }
 }
 
-mod write {
+pub mod write {
     use super::*;
     /// 注册用户，msg只能是Command::Register变体
-    async fn insert_user(client: &tokio_postgres::Client, msg: Command) -> super::Result<()> {
+    pub async fn insert_user(client: &tokio_postgres::Client, msg: Command) -> super::Result<()> {
         match msg {
             Command::Register(email, password) => {
                 client
@@ -56,11 +57,7 @@ mod write {
     }
 
     // 更新现有用户密码函数
-    async fn update_user_password(
-        client: &tokio_postgres::Client,
-        email: &str,
-        new_password: &str,
-    ) -> super::Result<()> {
+    async fn _update_user_password() -> super::Result<()> {
         unimplemented!("更新现有用户密码")
     }
 }
