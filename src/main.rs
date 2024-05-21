@@ -1,6 +1,6 @@
 mod database;
 mod error;
-mod user;
+// mod user;
 use error::Result;
 use postgresql_embedded::PostgreSQL;
 // use user::register; 完了，忘记之前自己写的时候怎么想的了
