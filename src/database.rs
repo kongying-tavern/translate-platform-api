@@ -7,6 +7,7 @@ type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug)]
 pub enum Error {
     Postgres(tokio_postgres::Error),
+    FailAtConnectDB(tokio_postgres::Error),
     WrongCommand,
 }
 
@@ -20,6 +21,32 @@ impl From<tokio_postgres::Error> for Error {
 // async fn register_user(msg: Command, client: Client) {
 //     assert!(matches!(msg, Command::Register(_, _)));
 // }
+
+/// 从postgresql_embedded::PostgreSQL连接到tokio_postgres::Client会检查连接是否成功，成功就返回Client
+pub async fn connect(
+    postgresql: &postgresql_embedded::PostgreSQL,
+) -> Result<tokio_postgres::Client> {
+    let settings = postgresql.settings();
+
+    let (client, connection) = tokio_postgres::connect(
+        format!(
+            "host={host} port={port} user={username} password={password}",
+            host = settings.host,
+            port = settings.port,
+            username = settings.username,
+            password = settings.password
+        )
+        .as_str(),
+        tokio_postgres::NoTls,
+    )
+    .await
+    .unwrap();
+    if let Err(e) = connection.await {
+        Err(Error::FailAtConnectDB(e))
+    } else {
+        Ok(client)
+    }
+}
 
 pub mod create {
     /// 创建用户表

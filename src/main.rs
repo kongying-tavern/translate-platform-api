@@ -3,7 +3,6 @@ mod error;
 mod user;
 use error::Result;
 use postgresql_embedded::PostgreSQL;
-use tokio_postgres::NoTls;
 // use user::register; 完了，忘记之前自己写的时候怎么想的了
 mod tests;
 use tokio::{
@@ -25,58 +24,32 @@ async fn main() -> Result<()> {
     let mut postgresql = PostgreSQL::default();
     postgresql.setup().await.unwrap();
     postgresql.start().await.unwrap();
-
     let database_name = "main";
     postgresql.create_database(database_name).await.unwrap();
-    let settings = postgresql.settings();
 
-    let (client, connection) = tokio_postgres::connect(
-        format!(
-            "host={host} port={port} user={username} password={password}",
-            host = settings.host,
-            port = settings.port,
-            username = settings.username,
-            password = settings.password
-        )
-        .as_str(),
-        NoTls,
-    )
-    .await
-    .unwrap();
+    let client = database::connect(&postgresql).await.unwrap();
 
-    tokio::spawn(async move {
-        if let Err(e) = connection.await {
-            eprintln!("connection error: {}", e);
-        } else {
-            create::create_user_table(&client).await.unwrap();
-        }
-    });
+    // 初始化表，目前只有用户表，后面有PDManger再说
+    create::create_user_table(&client).await.unwrap();
+    let mut database_init_count = 0;
 
     loop {
-        //这层循环捕捉链接会话
+        //这层循环捕捉链接会话，理论上会在链接到来之前准备好数据库对象
+        let client = match database::connect(&postgresql).await {
+            Ok(client) => client,
+            Err(e) => {
+                eprintln!("数据库连接失败: {:?}", e);
+                database_init_count += 1;
+                if database_init_count <= 10 {
+                    continue;
+                } else {
+                    panic!("数据库连接失败次数过多，程序退出")
+                }
+            }
+        };
         let (mut stream, _) = listener.accept().await?;
-        let (client, connection) = tokio_postgres::connect(
-            format!(
-                "host={host} port={port} user={username} password={password}",
-                host = settings.host,
-                port = settings.port,
-                username = settings.username,
-                password = settings.password
-            )
-            .as_str(),
-            NoTls,
-        )
-        .await
-        .unwrap();
 
         net_tasks.push(tokio::spawn(async move {
-            if let Err(e) = connection.await {
-                eprintln!("数据库链接错误: {}", e);
-                stream
-                    .write_all(format!("数据库链接错误: {}", e).as_bytes())
-                    .await
-                    .unwrap();
-            }
             let command = to_command(&mut stream).await;
             loop {
                 match &command {
