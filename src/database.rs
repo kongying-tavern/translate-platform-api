@@ -1,7 +1,8 @@
 //! 包含了所有逻辑中直接与数据库操作的方法
 
 use crate::Command;
-
+use log::debug;
+use postgresql_embedded::PostgreSQL;
 type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug)]
@@ -17,16 +18,27 @@ impl From<tokio_postgres::Error> for Error {
     }
 }
 
-// /// 注册用户，msg只能是Command::Register变体
-// async fn register_user(msg: Command, client: Client) {
-//     assert!(matches!(msg, Command::Register(_, _)));
-// }
+/// 使用嵌入式postgres创建数据库，包括一些基础的检查
+pub async fn build(database_name: &str) -> postgresql_embedded::PostgreSQL {
+    let mut postgresql = PostgreSQL::default();
+    postgresql.setup().await.unwrap();
+    postgresql.start().await.unwrap();
+
+    if !postgresql.database_exists(database_name).await.unwrap() {
+        debug!("新建数据库: {}", database_name);
+        postgresql.create_database(database_name).await.unwrap();
+    };
+
+    postgresql
+}
 
 /// 从postgresql_embedded::PostgreSQL连接到tokio_postgres::Client会检查连接是否成功，成功就返回Client
 pub async fn connect(
     postgresql: &postgresql_embedded::PostgreSQL,
 ) -> Result<tokio_postgres::Client> {
     let settings = postgresql.settings();
+
+    debug!("连接到数据库: {:?}", settings);
 
     let (client, connection) = tokio_postgres::connect(
         format!(
@@ -44,13 +56,22 @@ pub async fn connect(
     if let Err(e) = connection.await {
         Err(Error::FailAtConnectDB(e))
     } else {
+        debug!("连接成功");
         Ok(client)
     }
 }
 
+#[tokio::test]
+async fn test_postgresql_embedded() {
+    // 初始化数据库
+    let postgresql = build("main").await;
+    connect(&postgresql).await.unwrap();
+}
+
 pub mod create {
+    use super::*;
     /// 创建用户表
-    pub async fn create_user_table(client: &tokio_postgres::Client) -> super::Result<()> {
+    pub async fn create_user_table(client: &tokio_postgres::Client) -> Result<()> {
         client
             .execute(
                 "CREATE TABLE IF NOT EXISTS users (
@@ -61,6 +82,7 @@ pub mod create {
                 &[],
             )
             .await?;
+        debug!("创建用户表成功");
         Ok(())
     }
 }
@@ -68,7 +90,7 @@ pub mod create {
 pub mod write {
     use super::*;
     /// 注册用户，msg只能是Command::Register变体
-    pub async fn insert_user(client: &tokio_postgres::Client, msg: Command) -> super::Result<()> {
+    pub async fn insert_user(client: &tokio_postgres::Client, msg: Command) -> Result<()> {
         match msg {
             Command::Register(email, password) => {
                 client

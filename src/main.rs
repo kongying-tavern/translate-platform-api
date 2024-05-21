@@ -2,9 +2,7 @@ mod database;
 mod error;
 // mod user;
 use error::Result;
-use postgresql_embedded::PostgreSQL;
 // use user::register; 完了，忘记之前自己写的时候怎么想的了
-mod tests;
 use tokio::{
     io::AsyncWriteExt,
     net::{self, TcpListener},
@@ -21,12 +19,7 @@ async fn main() -> Result<()> {
     let mut net_tasks = Vec::new();
 
     // 初始化数据库
-    let mut postgresql = PostgreSQL::default();
-    postgresql.setup().await.unwrap();
-    postgresql.start().await.unwrap();
-    let database_name = "main";
-    postgresql.create_database(database_name).await.unwrap();
-
+    let postgresql = database::build("main").await;
     let client = database::connect(&postgresql).await.unwrap();
 
     // 初始化表，目前只有用户表，后面有PDManger再说

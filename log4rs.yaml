@@ -1,0 +1,28 @@
+appenders:
+  file_appender:
+    kind: file
+    path: "log/debug.log"
+    encoder:
+      pattern: "{d} - {l} - {m}{n}"
+
+  console_appender:
+    kind: console
+    encoder:
+      pattern: "{d} - {l} - {m}{n}"
+
+loggers:
+  debug_logger:
+    level: debug
+    appenders:
+      - file_appender
+
+  warn_logger:
+    level: warn
+    appenders:
+      - console_appender
+
+root:
+  level: debug
+  appenders:
+    - file_appender
+    - console_appender
