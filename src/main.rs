@@ -1,13 +1,30 @@
-use actix_web::{get, App, HttpResponse, HttpServer, Responder};
+use actix_web::{get, web::Data, App, HttpServer, Responder};
+use deadpool_postgres::{Manager, Pool};
+use tokio_postgres::{Config, NoTls};
+
+mod creat_table;
+mod user;
 
 #[get("/ping")]
 async fn ping() -> impl Responder {
-    HttpResponse::Ok().body("pong!")
+    "pong!"
 }
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    HttpServer::new(|| App::new().service(ping))
+    // 数据库配置
+
+    let db_manager = Manager::new(
+        Config::new()
+            .host("localhost")
+            .user("postgres")
+            .password("dev_password")
+            .to_owned(),
+        NoTls,
+    );
+    // TODO: 这里的池大小最好也从配置文件中读取
+    let pool = Pool::builder(db_manager).max_size(16).build().unwrap();
+    HttpServer::new(move || App::new().app_data(Data::new(pool.clone())).service(ping))
         .bind(("127.0.0.1", 8080))?
         .run()
         .await
