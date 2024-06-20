@@ -1640,6 +1640,7 @@ name = "translate-platform-api"
 version = "0.1.0"
 dependencies = [
  "actix-web",
+ "byteorder",
  "chrono",
  "deadpool-postgres",
  "jsonwebtoken",

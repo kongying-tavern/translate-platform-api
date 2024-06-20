@@ -24,10 +24,20 @@ async fn main() -> std::io::Result<()> {
     );
     // TODO: 这里的池大小最好也从配置文件中读取
     let pool = Pool::builder(db_manager).max_size(16).build().unwrap();
-    HttpServer::new(move || App::new().app_data(Data::new(pool.clone())).service(ping))
-        .bind(("127.0.0.1", 8080))?
-        .run()
+
+    creat_table::create_user_table(&pool.get().await.unwrap())
         .await
+        .unwrap();
+
+    HttpServer::new(move || {
+        App::new()
+            .app_data(Data::new(pool.clone()))
+            .service(user::register)
+            .service(ping)
+    })
+    .bind(("127.0.0.1", 8080))?
+    .run()
+    .await
 }
 
 #[actix_web::test]
