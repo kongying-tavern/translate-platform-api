@@ -6,7 +6,6 @@
 use std::collections::HashMap;
 
 use actix_web::{self, web, HttpResponse, Responder};
-use byteorder::{ByteOrder, LittleEndian};
 use chrono::Utc;
 use jsonwebtoken::{EncodingKey, Header};
 use serde::{Deserialize, Serialize};
@@ -19,7 +18,7 @@ struct UserData {
     password: String,
 }
 
-#[actix_web::get("/register")]
+#[actix_web::post("/register")]
 pub async fn register(
     db_pool: web::Data<deadpool_postgres::Pool>,
     req_body: web::Json<UserData>,
@@ -46,7 +45,7 @@ pub async fn register(
     claims.insert("exp", exp.to_string());
 
     // REVIEW: ；这里的secret也是一个问题，这里我先拿用户的三个属性异或出一个值
-    let secret = xor_user_data(req_body.0);
+    let secret = xor_user_data(&req_body.0);
     let token = jsonwebtoken::encode(
         &Header::default(),
         &claims,
@@ -71,10 +70,13 @@ pub async fn register(
 }
 
 /// 将用户的三个属性异或出一个值，用来当作JWT的secret
-fn xor_user_data(data: UserData) -> u64 {
-    let b1 = LittleEndian::read_u64(data.name.as_bytes());
-    let b2 = LittleEndian::read_u64(data.email.as_bytes());
-    let b3 = LittleEndian::read_u64(data.password.as_bytes());
-
-    b1 ^ b2 ^ b3
+fn xor_user_data(data: &UserData) -> u64 {
+    data.name.as_bytes().iter().map(|&a| a as u64).sum::<u64>()
+        ^ data.email.as_bytes().iter().map(|&a| a as u64).sum::<u64>()
+        ^ data
+            .password
+            .as_bytes()
+            .iter()
+            .map(|&a| a as u64)
+            .sum::<u64>()
 }
