@@ -1,38 +1,69 @@
-mod error;
+use actix_web::{get, web::Data, App, HttpServer, Responder};
+use deadpool_postgres::{Manager, Pool};
+use tokio_postgres::{Config, NoTls};
+
+mod creat_table;
 mod user;
-use error::Result;
-use user::register;
 
-use tokio::net::{self, TcpListener};
-
-#[tokio::main]
-async fn main() -> Result<()> {
-    println!("log begin"); // TODO: 之后需要换成log库
-    let listener = TcpListener::bind("127.0.0.1:6379").await?;
-    let mut net_tasks = Vec::new();
-    loop {
-        //这层循环捕捉链接会话
-        let (mut stream, _) = listener.accept().await?;
-        net_tasks.push(tokio::spawn(async move {
-            let command = to_command(&mut stream).await;
-            loop {
-                match command {
-                    Ok(Command::Register(_, _)) => {
-                        let _ = register::register().await; //TODO: 处理注册错误发送到客户端
-                        return ();
-                    }
-                    Err(_) => unimplemented!("将错误抛给客户端"),
-                }
-            }
-            //这层循环保持和一个客户端会话的收发信
-        }));
-    }
+#[get("/ping")]
+async fn ping() -> impl Responder {
+    "pong!"
 }
 
-async fn to_command(_stream: &mut net::TcpStream) -> Result<Command> {
-    unimplemented!("解析客户端发来的数据，解析为具体的命令")
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    // 数据库配置
+
+    let db_manager = Manager::new(
+        Config::new()
+            .host("localhost")
+            .user("postgres")
+            .password("dev_password")
+            .to_owned(),
+        NoTls,
+    );
+    // TODO: 这里的池大小最好也从配置文件中读取
+    let pool = Pool::builder(db_manager).max_size(16).build().unwrap();
+
+    creat_table::create_user_table(&pool.get().await.unwrap())
+        .await
+        .unwrap();
+
+    HttpServer::new(move || {
+        App::new()
+            .app_data(Data::new(pool.clone()))
+            .service(user::register)
+            .service(ping)
+    })
+    .bind(("127.0.0.1", 8080))?
+    .run()
+    .await
 }
 
-enum Command {
-    Register(String, String), // email, password，一次收发结束
+#[actix_web::test]
+/// 测试正常访问postgres
+async fn test_tokio_postgres() {
+    use actix_web::rt;
+    use tokio_postgres::NoTls;
+    // TODO：之后将密码设置为读取内置文件填写，开发阶段就先这样吧
+    let (client, connection) =
+        tokio_postgres::connect("host=localhost user=postgres password=dev_password", NoTls)
+            .await
+            .unwrap();
+
+    rt::spawn(async move {
+        if let Err(e) = connection.await {
+            eprintln!("connection error: {}", e);
+        }
+    });
+
+    // Now we can execute a simple statement that just returns its parameter.
+    let rows = client
+        .query("SELECT $1::TEXT", &[&"hello world"])
+        .await
+        .unwrap();
+
+    // And then check that we got back the same string we sent over.
+    let value: &str = rows[0].get(0);
+    assert_eq!(value, "hello world");
 }
