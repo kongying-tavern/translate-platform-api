@@ -4,7 +4,7 @@
   "avatar": "",
   "version": "4.9.2",
   "createdTime": "2024-6-22 17:02:48",
-  "updatedTime": "2024-6-22 20:57:04",
+  "updatedTime": "2024-6-22 22:57:08",
   "dbConns": [],
   "profile": {
     "default": {
@@ -832,9 +832,21 @@
       "id": "FBC4E6BA-CFA7-429F-A637-B264E3BAAADF",
       "items": [
         {
+          "defKey": "-1",
+          "defName": "匿名用户",
+          "sort": "1",
+          "parentKey": "",
+          "intro": "",
+          "enabled": true,
+          "attr1": "",
+          "attr2": "",
+          "attr3": "",
+          "id": "6BBB87C6-9B5E-498B-A512-AE1432008DFA"
+        },
+        {
           "defKey": "0",
           "defName": "管理员",
-          "sort": "",
+          "sort": "2",
           "parentKey": "",
           "intro": "",
           "enabled": true,
@@ -846,7 +858,7 @@
         {
           "defKey": "1",
           "defName": "用户",
-          "sort": "",
+          "sort": "3",
           "parentKey": "",
           "intro": "",
           "enabled": true,
