@@ -100,8 +100,8 @@ pub async fn register(
     let client = db_pool.get().await.unwrap();
     if let Err(e) = client
         .execute(
-            "**SQL语句待填充**",
-            &[&req_body.name, &req_body.password, &req_body.email],
+            "select * from user_table",
+            &[], // &[&req_body.name, &req_body.password, &req_body.email],
         )
         .await
     {
