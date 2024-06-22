@@ -12,10 +12,12 @@ use crate::ResJson;
 
 #[derive(Debug)]
 pub enum Error {
-    ///数据库插入失败
+    /// 数据库插入失败
     DatabaseInsertionFailed(PostgresPkgError),
-    ///生成JWT失败
+    /// 生成JWT失败
     FailedToProduceJWT(JWTPkgError),
+    /// JWT格式错误
+    JWTFormatError,
 }
 
 impl From<Error> for ResJson<()> {
@@ -26,6 +28,7 @@ impl From<Error> for ResJson<()> {
             error_code: match e {
                 Error::DatabaseInsertionFailed(_) => 1,
                 Error::FailedToProduceJWT(_) => 2,
+                Error::JWTFormatError => 3,
             } * 100
                 + 1,
             data: None,
@@ -113,4 +116,18 @@ pub async fn register(
 
     let res = ResJson::new(req_body.get_jwt().await.unwrap());
     HttpResponse::Ok().json(res)
+}
+
+pub mod jwt {
+    use super::{Error, Result, UserData};
+    use actix_web::{self, dev, web::Json};
+
+    pub async fn verify_jwt(req: &mut dev::ServiceRequest) -> Result<UserData> {
+        let json = req
+            .extract::<Json<UserData>>()
+            .await
+            .map_err(|_| Error::JWTFormatError)?;
+        let userdata = json.into_inner();
+        Ok(userdata)
+    }
 }

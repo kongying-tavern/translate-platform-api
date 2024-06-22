@@ -1,4 +1,5 @@
 use actix_web::{
+    dev::Service,
     get,
     web::{self, Data},
     App, HttpServer, Responder,
@@ -6,6 +7,7 @@ use actix_web::{
 use deadpool_postgres::{Manager, Pool};
 use serde::Serialize;
 use tokio_postgres::{Config, NoTls};
+use user::jwt;
 
 mod creat_table;
 mod user;
@@ -36,7 +38,17 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .app_data(Data::new(pool.clone()))
-            .service(web::scope("/user").service(user::register))
+            .service(
+                web::scope("/user")
+                    .wrap_fn(|mut req, srv| {
+                        let fut = srv.call(req);
+                        async {
+                            let res = fut.await?;
+                            Ok(res)
+                        }
+                    })
+                    .service(user::register),
+            )
             .service(ping)
     })
     .bind(("127.0.0.1", 8080))?
