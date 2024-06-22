@@ -4,7 +4,7 @@
   "avatar": "",
   "version": "4.9.2",
   "createdTime": "2024-6-22 17:02:48",
-  "updatedTime": "2024-6-22 17:14:28",
+  "updatedTime": "2024-6-22 17:18:21",
   "dbConns": [],
   "profile": {
     "default": {
@@ -610,6 +610,12 @@
         "56F4B55B-F0B8-4049-9E6B-50B95C1D793A": "DATE",
         "483F9346-C99E-4014-A1D2-A554606BD8A3": "DATETIME",
         "ABF5836C-0B7C-4007-A41C-F869325E5842": "DATE"
+      },
+      {
+        "defKey": "json",
+        "defName": "JSON",
+        "id": "D9548F5F-7808-424B-8650-F5F22923C895",
+        "DFBEC1DD-AA84-456E-BBF3-C95DD0DB2022": "JSON"
       }
     ]
   },
@@ -685,6 +691,15 @@
       "scale": "",
       "uiHint": "",
       "id": "6F7C1C5C-D159-41E6-BF9D-54DEEFA79AFF"
+    },
+    {
+      "defKey": "JSON",
+      "defName": "JSON",
+      "applyFor": "D9548F5F-7808-424B-8650-F5F22923C895",
+      "len": "",
+      "scale": "",
+      "uiHint": "",
+      "id": "A0BEF565-5609-4811-90A4-2E0B2390847E"
     }
   ],
   "diagrams": [],
