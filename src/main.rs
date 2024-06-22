@@ -53,17 +53,17 @@ async fn main() -> std::io::Result<()> {
 /// REVIEW: 要不要换个名字？
 #[derive(Serialize)]
 struct ResJson<T> {
+    error_flag: bool,
     error_code: u8,
-    error_msg: String,
-    content: Option<T>,
+    data: Option<T>,
 }
 
 impl<T: Serialize> ResJson<T> {
     fn new(content: T) -> Self {
         Self {
+            error_flag: false,
             error_code: 0,
-            error_msg: "success".to_string(),
-            content: Some(content),
+            data: Some(content),
         }
     }
 }

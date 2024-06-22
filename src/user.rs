@@ -4,7 +4,6 @@
 use actix_web::{self, web, HttpResponse, Responder};
 use chrono::Utc;
 use jsonwebtoken::{errors::Error as JWTPkgError, EncodingKey, Header};
-use log::debug;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fmt::Debug};
 use tokio_postgres::error::Error as PostgresPkgError;
@@ -21,13 +20,15 @@ pub enum Error {
 
 impl From<Error> for ResJson<()> {
     fn from(e: Error) -> Self {
+        // TODO: 之后把错误输出搬到这里
         ResJson {
+            error_flag: true,
             error_code: match e {
-                Error::DatabaseInsertionFailed(_) => 101,
-                Error::FailedToProduceJWT(_) => 201,
-            },
-            error_msg: format!("{:?}", e),
-            content: None,
+                Error::DatabaseInsertionFailed(_) => 1,
+                Error::FailedToProduceJWT(_) => 2,
+            } * 100
+                + 1,
+            data: None,
         }
     }
 }
@@ -95,7 +96,6 @@ pub async fn register(
     req_body: web::Json<UserData>,
 ) -> impl Responder {
     // TODO: 用户注册之前应该有一个检查条件
-    debug!("得到响应: register, 用户信息: {:?}", req_body.0);
 
     let client = db_pool.get().await.unwrap();
     if let Err(e) = client
