@@ -1,5 +1,10 @@
-use actix_web::{get, web::Data, App, HttpServer, Responder};
+use actix_web::{
+    get,
+    web::{self, Data},
+    App, HttpServer, Responder,
+};
 use deadpool_postgres::{Manager, Pool};
+use serde::Serialize;
 use tokio_postgres::{Config, NoTls};
 
 mod creat_table;
@@ -13,7 +18,6 @@ async fn ping() -> impl Responder {
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     // 数据库配置
-
     let db_manager = Manager::new(
         Config::new()
             .host("localhost")
@@ -32,12 +36,36 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .app_data(Data::new(pool.clone()))
-            .service(user::register)
+            .service(web::scope("/user").service(user::register))
             .service(ping)
     })
     .bind(("127.0.0.1", 8080))?
     .run()
     .await
+}
+
+/// 所有响应的返回格式
+/// REVIEW: 大家看看这样写成不？
+/// 计划error_code使用树形编码，一个十位数，0-255，最低两位（都是十位数）是业务类型，在两位要么是子分类或者是具体错误
+/// * 00: 成功，其他位也是0
+/// * 01: user相关操作错误
+/// 具体错误类型见ERRORLIST.md(还没写)
+/// REVIEW: 要不要换个名字？
+#[derive(Serialize)]
+struct ResJson<T> {
+    error_code: u8,
+    error_msg: String,
+    content: Option<T>,
+}
+
+impl<T: Serialize> ResJson<T> {
+    fn new(content: T) -> Self {
+        Self {
+            error_code: 0,
+            error_msg: "success".to_string(),
+            content: Some(content),
+        }
+    }
 }
 
 #[actix_web::test]

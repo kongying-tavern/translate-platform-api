@@ -1,18 +1,35 @@
 //! 包含用户的注册，登陆，注销，更新邮箱，更新密码
 //! 之后想到的操作应该先写在这里
 
-use std::collections::HashMap;
-
 use actix_web::{self, web, HttpResponse, Responder};
 use chrono::Utc;
 use jsonwebtoken::{errors::Error as JWTPkgError, EncodingKey, Header};
+use log::debug;
 use serde::{Deserialize, Serialize};
+use std::{collections::HashMap, fmt::Debug};
 use tokio_postgres::error::Error as PostgresPkgError;
+
+use crate::ResJson;
 
 #[derive(Debug)]
 pub enum Error {
-    IncorrectUserInformation(PostgresPkgError), //错误的用户信息
-    FailedToProduceJWT(JWTPkgError),            //生成JWT失败
+    ///数据库插入失败
+    DatabaseInsertionFailed(PostgresPkgError),
+    ///生成JWT失败
+    FailedToProduceJWT(JWTPkgError),
+}
+
+impl From<Error> for ResJson<()> {
+    fn from(e: Error) -> Self {
+        ResJson {
+            error_code: match e {
+                Error::DatabaseInsertionFailed(_) => 101,
+                Error::FailedToProduceJWT(_) => 201,
+            },
+            error_msg: format!("{:?}", e),
+            content: None,
+        }
+    }
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -71,12 +88,14 @@ impl UserData {
     }
 }
 
+/// 新用户注册的响应。
 #[actix_web::post("/register")]
 pub async fn register(
     db_pool: web::Data<deadpool_postgres::Pool>,
     req_body: web::Json<UserData>,
 ) -> impl Responder {
     // TODO: 用户注册之前应该有一个检查条件
+    debug!("得到响应: register, 用户信息: {:?}", req_body.0);
 
     let client = db_pool.get().await.unwrap();
     if let Err(e) = client
@@ -87,9 +106,11 @@ pub async fn register(
         .await
     {
         // TODO 之后有了日志再修改
-        eprintln!("注册失败: {:?}", Error::IncorrectUserInformation(e));
-        return HttpResponse::Forbidden().finish();
+        let error = Error::DatabaseInsertionFailed(e);
+        eprintln!("注册失败: {:?}", error);
+        return HttpResponse::Forbidden().json(ResJson::from(error));
     }
 
-    HttpResponse::Ok().json(req_body.get_jwt().await.unwrap())
+    let res = ResJson::new(req_body.get_jwt().await.unwrap());
+    HttpResponse::Ok().json(res)
 }
