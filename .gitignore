@@ -20,3 +20,5 @@
 /.vscode/
 *.log
 *.d
+
+/database/pdmaner/.back_*/*.pdma.json
