@@ -1,14 +1,13 @@
 //! 包含用户的注册，登陆，注销，更新邮箱，更新密码
 //! 之后想到的操作应该先写在这里
 
+use crate::ResJson;
 use actix_web::{self, web, HttpResponse, Responder};
 use chrono::Utc;
 use jsonwebtoken::{errors::Error as JWTPkgError, EncodingKey, Header};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fmt::Debug};
 use tokio_postgres::error::Error as PostgresPkgError;
-
-use crate::ResJson;
 
 #[derive(Debug)]
 pub enum Error {
@@ -17,7 +16,7 @@ pub enum Error {
     /// 生成JWT失败
     FailedToProduceJWT(JWTPkgError),
     /// JWT格式错误
-    JWTFormatError,
+    JWTFormatError(actix_web::Error),
 }
 
 impl From<Error> for ResJson<()> {
@@ -28,7 +27,7 @@ impl From<Error> for ResJson<()> {
             error_code: match e {
                 Error::DatabaseInsertionFailed(_) => 1,
                 Error::FailedToProduceJWT(_) => 2,
-                Error::JWTFormatError => 3,
+                Error::JWTFormatError(_) => 3,
             } * 100
                 + 1,
             data: None,
@@ -113,21 +112,39 @@ pub async fn register(
         eprintln!("注册失败: {:?}", error);
         return HttpResponse::Forbidden().json(ResJson::from(error));
     }
-
+    println!("{:?}", req_body);
     let res = ResJson::new(req_body.get_jwt().await.unwrap());
     HttpResponse::Ok().json(res)
 }
 
 pub mod jwt {
-    use super::{Error, Result, UserData};
-    use actix_web::{self, dev, web::Json};
+    use super::UserData;
+    use actix_web::{self, body, dev, web, HttpResponse};
+    use actix_web_lab::middleware::Next;
+    use serde::Serialize;
 
-    pub async fn verify_jwt(req: &mut dev::ServiceRequest) -> Result<UserData> {
+    #[derive(Serialize)]
+    struct Jwt {
+        // Jwt；令牌
+        token: String,
+    }
+
+    pub async fn verify_jwt(
+        mut req: dev::ServiceRequest,
+        next: Next<impl body::MessageBody + 'static>,
+    ) -> Result<dev::ServiceResponse<impl body::MessageBody + 'static>, actix_web::Error> {
+        // 测试是否由中间件拦截请求
         let json = req
-            .extract::<Json<UserData>>()
+            .extract::<web::Json<UserData>>()
             .await
-            .map_err(|_| Error::JWTFormatError)?;
-        let userdata = json.into_inner();
-        Ok(userdata)
+            .map_err(|e| super::Error::JWTFormatError(e));
+        let res = match json {
+            Ok(json) => next.call(req).await?.map_into_left_body(),
+            Err(e) => req
+                .into_response(HttpResponse::Forbidden().json(super::ResJson::from(e)))
+                .map_into_right_body(),
+        };
+        Ok(res)
+        // post-processing
     }
 }

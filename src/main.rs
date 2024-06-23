@@ -1,9 +1,8 @@
 use actix_web::{
-    dev::Service,
-    get,
     web::{self, Data},
     App, HttpServer, Responder,
 };
+use actix_web_lab::middleware;
 use deadpool_postgres::{Manager, Pool};
 use serde::Serialize;
 use tokio_postgres::{Config, NoTls};
@@ -12,7 +11,7 @@ use user::jwt;
 mod creat_table;
 mod user;
 
-#[get("/ping")]
+#[actix_web::get("/ping")]
 async fn ping() -> impl Responder {
     "pong!"
 }
@@ -20,6 +19,7 @@ async fn ping() -> impl Responder {
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     // 数据库配置
+    // TODO: 别忘记配置线程数
     let db_manager = Manager::new(
         Config::new()
             .host("localhost")
@@ -40,13 +40,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(Data::new(pool.clone()))
             .service(
                 web::scope("/user")
-                    .wrap_fn(|mut req, srv| {
-                        let fut = srv.call(req);
-                        async {
-                            let res = fut.await?;
-                            Ok(res)
-                        }
-                    })
+                    // .wrap(middleware::from_fn(jwt::verify_jwt))
                     .service(user::register),
             )
             .service(ping)
