@@ -1,0 +1,86 @@
+use actix_web::{self, body, dev, http::header, HttpMessage, HttpResponse};
+use actix_web_lab::middleware::Next;
+use chrono::Utc;
+use jsonwebtoken::{Algorithm, DecodingKey, Validation};
+use serde::{Deserialize, Serialize};
+
+pub(super) const SECRET: &[u8] = "固定的secret".as_bytes();
+
+/// JWT操作中更加具体的错误细节
+/// 这里的错误我认为不应该暴露给前端，只应该留存在后端的日志里
+#[derive(Debug)]
+pub enum JWTErrorCase {
+    /// 令牌无法转换为字符串
+    MayNotString,
+    /// 令牌字段可能为空
+    MayEmpty,
+    /// 字串格式非法
+    InvalidFormat,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Claims {
+    /// 所有者
+    sub: usize,
+    /// 超时时间
+    exp: usize,
+    /// 用户角色
+    role: super::Role,
+}
+
+impl Claims {
+    /// 得到刷新用的令牌
+    pub fn get_refresh_token(&mut self) -> &Self {
+        self.exp += 60 * 60 * 24 * 7; // 1 周
+        self
+    }
+    pub fn new(sub: usize) -> Self {
+        let now = Utc::now().timestamp() as usize;
+        let exp = now + 60 * 60; // 一小时有效期
+        Self {
+            sub,
+            exp,
+            role: super::Role::User,
+        }
+    }
+}
+
+/// JWT鉴权中间件，验证成功会在请求头中将JWT字段替换为用户角色
+/// 鉴权的具体步骤位于`verify_jwt`函数中
+pub async fn mw_verify_jwt(
+    req: dev::ServiceRequest,
+    next: Next<impl body::MessageBody + 'static>,
+) -> Result<dev::ServiceResponse<impl body::MessageBody + 'static>, actix_web::Error> {
+    println!("catch mw");
+    // 测试是否由中间件拦截请求。应该在具体函数中处理Option，整个鉴权过程会有至少三种错误，所以封装在另一个函数中
+    let jwt = req.headers().get(header::AUTHORIZATION);
+    println!("header::AUTHORIZATION: {:?}", jwt);
+    let res = match verify_jwt(jwt).await {
+        Ok(role) => {
+            println!("role: {:?}", role);
+            req.extensions_mut().insert(role);
+            next.call(req).await?.map_into_right_body()
+        }
+        Err(e) => {
+            println!("error: {:?}", e);
+            req.into_response(HttpResponse::Forbidden().json(super::ResJson::from(e)))
+                .map_into_left_body()
+        }
+    };
+    Ok(res)
+}
+
+/// JWT的具体鉴权操作
+async fn verify_jwt(jwt: Option<&header::HeaderValue>) -> super::Result<super::Role> {
+    let claims = jsonwebtoken::decode::<Claims>(
+        jwt.ok_or(super::Error::JWTFormatError(JWTErrorCase::MayEmpty))?
+            .to_str()
+            .map_err(|_| super::Error::JWTFormatError(JWTErrorCase::MayNotString))?
+            .strip_prefix("Bearer ")
+            .ok_or(super::Error::JWTFormatError(JWTErrorCase::InvalidFormat))?,
+        &DecodingKey::from_secret(SECRET),
+        &Validation::new(Algorithm::HS256),
+    )
+    .map_err(|e| super::Error::JWTVerificationFailed(e))?;
+    Ok(claims.claims.role)
+}

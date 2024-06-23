@@ -57,7 +57,7 @@ async fn ping() -> impl Responder {
 /// * 00: 成功，其他位也是0
 /// * 01: user相关操作错误
 /// 具体错误类型见ERRORLIST.md(还没写)
-/// 其中服务器错误为`3312`。它们都是一类错误，发生了逻辑上不会发生的错误类型。
+/// 其中只有含有低两位的错误为服务器错误，这种情况下，程序理论上应该抛出panic的地方但为了让前端知晓所以还是返回了
 /// REVIEW: 要不要换个名字？
 #[derive(Serialize)]
 struct ResJson<T> {
@@ -96,9 +96,12 @@ struct UniversalField {
 
 /// 服务器错误
 /// 一些应该panic的地方为了能让前端知道，就用这个
+#[derive(Debug)]
 enum Error {
     /// 服务器逻辑错误
     ServerLogicError,
+    /// 数据库连接失败
+    DatabaseConnectionFailed,
 }
 
 #[actix_web::test]
