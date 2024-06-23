@@ -3,8 +3,9 @@ use actix_web::{
     App, HttpServer, Responder,
 };
 use actix_web_lab::middleware;
+use chrono::{DateTime, Local};
 use deadpool_postgres::{Manager, Pool};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tokio_postgres::{Config, NoTls};
 use user::jwt;
 
@@ -72,6 +73,24 @@ impl<T: Serialize> ResJson<T> {
             data: Some(content),
         }
     }
+}
+
+/// 通用字段
+#[derive(Serialize, Deserialize, Debug)]
+struct UniversalField {
+    id: usize,
+    /// 乐观锁
+    version: usize,
+    /// 创建人
+    create_by: Option<usize>,
+    /// 创建时间
+    create_time: Option<DateTime<Local>>,
+    /// 更新人
+    update_by: Option<usize>,
+    /// 更新时间
+    update_time: Option<DateTime<Local>>,
+    /// 是否删除，默认为false
+    del_flag: bool,
 }
 
 #[actix_web::test]

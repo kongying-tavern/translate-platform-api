@@ -13,5 +13,10 @@ tokio-postgres = "0.7.10"
 serde = "1.0.203"
 deadpool-postgres = "0.14.0"
 jsonwebtoken = "9.3.0"
-chrono = "0.4.38"
+chrono = { version = "0.4.38", features = ["serde"] }
 actix-web-lab = "0.20.2"
+isolang = { version = "2.4.0", features = [
+    "local_names",
+    "serde",
+    "lowercase_names",
+] }
