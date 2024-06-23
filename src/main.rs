@@ -4,32 +4,28 @@ use actix_web::{
 };
 use actix_web_lab::middleware;
 use chrono::{DateTime, Local};
-use deadpool_postgres::{Manager, Pool};
+
+use diesel::r2d2;
 use serde::{Deserialize, Serialize};
-use tokio_postgres::{Config, NoTls};
 use user::{jwt, register};
 
-mod create_table;
+mod schema;
 mod user;
+
+pub fn get_connection_pool() -> r2d2::Pool<r2d2::ConnectionManager<diesel::PgConnection>> {
+    let url = "postgres://postgres:dev_password@localhost";
+    let manager = r2d2::ConnectionManager::<diesel::PgConnection>::new(url);
+    // Refer to the `r2d2` documentation for more methods to use
+    // when building a connection pool
+    r2d2::Pool::builder()
+        .test_on_check_out(true)
+        .build(manager)
+        .expect("Could not build connection pool")
+}
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    // 数据库配置
-    // TODO: 别忘记配置线程数
-    let db_manager = Manager::new(
-        Config::new()
-            .host("localhost")
-            .user("postgres")
-            .password("dev_password")
-            .to_owned(),
-        NoTls,
-    );
-    // TODO: 这里的池大小最好也从配置文件中读取
-    let pool = Pool::builder(db_manager).max_size(16).build().unwrap();
-
-    create_table::create_user_table(&pool.get().await.unwrap())
-        .await
-        .unwrap();
+    let pool = get_connection_pool();
 
     HttpServer::new(move || {
         App::new()

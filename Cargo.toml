@@ -20,3 +20,15 @@ isolang = { version = "2.4.0", features = [
     "serde",
     "lowercase_names",
 ] }
+diesel = { version = "2.1.0", default-features = false, features = [
+    "chrono",
+    "r2d2",
+    "postgres",
+] }
+diesel-async = { version = "0.4.1", features = [
+    "deadpool",
+    "postgres",
+    "tokio",
+    "tokio-postgres",
+    "async-connection-wrapper",
+] }
