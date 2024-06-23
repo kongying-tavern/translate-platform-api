@@ -1,36 +1,29 @@
--- This file was automatically created by Diesel to setup helper functions
--- and other internal bookkeeping. This file is safe to edit, any future
--- changes will be added to existing projects as new migrations.
+CREATE TABLE sys_user(
+    version INTEGER NOT NULL DEFAULT  1,
+    create_by VARCHAR,
+    create_time TIMESTAMP,
+    update_by VARCHAR,
+    update_time TIMESTAMP,
+    del_flag BOOLEAN NOT NULL DEFAULT  false,
+    id VARCHAR NOT NULL,
+    username VARCHAR(32) NOT NULL DEFAULT  '',
+    password VARCHAR(255) NOT NULL DEFAULT  '',
+    role INTEGER NOT NULL DEFAULT  -1,
+    timezone VARCHAR(32) NOT NULL DEFAULT  '',
+    locale VARCHAR(32) NOT NULL DEFAULT  '',
+    PRIMARY KEY (id)
+);
 
-
-
-
--- Sets up a trigger for the given table to automatically set a column called
--- `updated_at` whenever the row is modified (unless `updated_at` was included
--- in the modified columns)
---
--- # Example
---
--- ```sql
--- CREATE TABLE users (id SERIAL PRIMARY KEY, updated_at TIMESTAMP NOT NULL DEFAULT NOW());
---
--- SELECT diesel_manage_updated_at('users');
--- ```
-CREATE OR REPLACE FUNCTION diesel_manage_updated_at(_tbl regclass) RETURNS VOID AS $$
-BEGIN
-    EXECUTE format('CREATE TRIGGER set_updated_at BEFORE UPDATE ON %s
-                    FOR EACH ROW EXECUTE PROCEDURE diesel_set_updated_at()', _tbl);
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION diesel_set_updated_at() RETURNS trigger AS $$
-BEGIN
-    IF (
-        NEW IS DISTINCT FROM OLD AND
-        NEW.updated_at IS NOT DISTINCT FROM OLD.updated_at
-    ) THEN
-        NEW.updated_at := current_timestamp;
-    END IF;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+COMMENT ON TABLE sys_user IS '用户';
+COMMENT ON COLUMN sys_user.version IS '乐观锁';
+COMMENT ON COLUMN sys_user.create_by IS '创建人';
+COMMENT ON COLUMN sys_user.create_time IS '创建时间';
+COMMENT ON COLUMN sys_user.update_by IS '更新人';
+COMMENT ON COLUMN sys_user.update_time IS '更新时间';
+COMMENT ON COLUMN sys_user.del_flag IS '是否删除';
+COMMENT ON COLUMN sys_user.id IS 'ID';
+COMMENT ON COLUMN sys_user.username IS '用户名';
+COMMENT ON COLUMN sys_user.password IS '密码';
+COMMENT ON COLUMN sys_user.role IS '角色';
+COMMENT ON COLUMN sys_user.timezone IS '偏好时区';
+COMMENT ON COLUMN sys_user.locale IS '偏好语言';
