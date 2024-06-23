@@ -8,7 +8,7 @@ use serde::Serialize;
 use tokio_postgres::{Config, NoTls};
 use user::jwt;
 
-mod creat_table;
+mod create_table;
 mod user;
 
 #[actix_web::get("/ping")]
@@ -31,7 +31,7 @@ async fn main() -> std::io::Result<()> {
     // TODO: 这里的池大小最好也从配置文件中读取
     let pool = Pool::builder(db_manager).max_size(16).build().unwrap();
 
-    creat_table::create_user_table(&pool.get().await.unwrap())
+    create_table::create_user_table(&pool.get().await.unwrap())
         .await
         .unwrap();
 
