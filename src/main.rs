@@ -7,15 +7,10 @@ use chrono::{DateTime, Local};
 use deadpool_postgres::{Manager, Pool};
 use serde::{Deserialize, Serialize};
 use tokio_postgres::{Config, NoTls};
-use user::jwt;
+use user::{jwt, register};
 
 mod create_table;
 mod user;
-
-#[actix_web::get("/ping")]
-async fn ping() -> impl Responder {
-    "pong!"
-}
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -41,8 +36,8 @@ async fn main() -> std::io::Result<()> {
             .app_data(Data::new(pool.clone()))
             .service(
                 web::scope("/user")
-                    .wrap(middleware::from_fn(jwt::verify_jwt))
-                    .service(user::register),
+                    .wrap(middleware::from_fn(jwt::mw_verify_jwt))
+                    .service(register::sv_register),
             )
             .service(ping)
     })
@@ -51,17 +46,23 @@ async fn main() -> std::io::Result<()> {
     .await
 }
 
+#[actix_web::get("/ping")]
+async fn ping() -> impl Responder {
+    "pong!"
+}
+
 /// 所有响应的返回格式
 /// REVIEW: 大家看看这样写成不？
-/// 计划error_code使用树形编码，一个十位数，0-255，最低两位（都是十位数）是业务类型，在两位要么是子分类或者是具体错误
+/// 计划error_code使用树形编码，一个十进制数，最低两位是业务分类，往前两位要么是子分类要么是具体错误类型
 /// * 00: 成功，其他位也是0
 /// * 01: user相关操作错误
 /// 具体错误类型见ERRORLIST.md(还没写)
+/// 其中服务器错误为`3312`。它们都是一类错误，发生了逻辑上不会发生的错误类型。
 /// REVIEW: 要不要换个名字？
 #[derive(Serialize)]
 struct ResJson<T> {
     error_flag: bool,
-    error_code: u8,
+    error_code: u16,
     data: Option<T>,
 }
 
@@ -91,6 +92,13 @@ struct UniversalField {
     update_time: Option<DateTime<Local>>,
     /// 是否删除，默认为false
     del_flag: bool,
+}
+
+/// 服务器错误
+/// 一些应该panic的地方为了能让前端知道，就用这个
+enum Error {
+    /// 服务器逻辑错误
+    ServerLogicError,
 }
 
 #[actix_web::test]
