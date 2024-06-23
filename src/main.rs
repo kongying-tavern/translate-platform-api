@@ -40,7 +40,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(Data::new(pool.clone()))
             .service(
                 web::scope("/user")
-                    // .wrap(middleware::from_fn(jwt::verify_jwt))
+                    .wrap(middleware::from_fn(jwt::verify_jwt))
                     .service(user::register),
             )
             .service(ping)

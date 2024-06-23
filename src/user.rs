@@ -16,7 +16,7 @@ pub enum Error {
     /// 生成JWT失败
     FailedToProduceJWT(JWTPkgError),
     /// JWT格式错误
-    JWTFormatError(actix_web::Error),
+    JWTFormatError,
 }
 
 impl From<Error> for ResJson<()> {
@@ -27,7 +27,7 @@ impl From<Error> for ResJson<()> {
             error_code: match e {
                 Error::DatabaseInsertionFailed(_) => 1,
                 Error::FailedToProduceJWT(_) => 2,
-                Error::JWTFormatError(_) => 3,
+                Error::JWTFormatError => 3,
             } * 100
                 + 1,
             data: None,
@@ -118,31 +118,32 @@ pub async fn register(
 }
 
 pub mod jwt {
-    use super::UserData;
-    use actix_web::{self, body, dev, web, HttpResponse};
+    use actix_web::{self, body, dev, http::header, HttpResponse};
     use actix_web_lab::middleware::Next;
-    use serde::Serialize;
+    use serde::{Deserialize, Serialize};
 
-    #[derive(Serialize)]
+    #[derive(Serialize, Deserialize)]
     struct Jwt {
         // Jwt；令牌
         token: String,
     }
 
     pub async fn verify_jwt(
-        mut req: dev::ServiceRequest,
+        req: dev::ServiceRequest,
         next: Next<impl body::MessageBody + 'static>,
     ) -> Result<dev::ServiceResponse<impl body::MessageBody + 'static>, actix_web::Error> {
+        println!("catch mw");
         // 测试是否由中间件拦截请求
-        let json = req
-            .extract::<web::Json<UserData>>()
-            .await
-            .map_err(|e| super::Error::JWTFormatError(e));
-        let res = match json {
-            Ok(json) => next.call(req).await?.map_into_left_body(),
-            Err(e) => req
-                .into_response(HttpResponse::Forbidden().json(super::ResJson::from(e)))
-                .map_into_right_body(),
+        let jwt = req.headers().get(header::AUTHORIZATION);
+        println!("header::AUTHORIZATION: {:?}", jwt);
+        let res = match jwt {
+            Some(_) => next.call(req).await?.map_into_right_body(),
+            None => req
+                .into_response(
+                    HttpResponse::Forbidden()
+                        .json(super::ResJson::from(super::Error::JWTFormatError)),
+                )
+                .map_into_left_body(),
         };
         Ok(res)
         // post-processing
