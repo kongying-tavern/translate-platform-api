@@ -1,14 +1,6 @@
-//! 这里会编写一些初始化表的操作
-//! 在初始化时检查表是否存在，如果不存在则创建表
 
-use tokio_postgres::error::Error;
-
-pub async fn create_user_table(client: &deadpool_postgres::Object) -> Result<(), Error> {
-    client
-        .execute(
-            "
 /* --------------- 创建表 --------------- */
-DROP TABLE IF EXISTS sys_user;
+-- DROP TABLE IF EXISTS sys_user;
 CREATE TABLE sys_user(
     version INTEGER NOT NULL DEFAULT  1,
     create_by VARCHAR,
@@ -37,9 +29,3 @@ COMMENT ON COLUMN sys_user.password IS '密码';
 COMMENT ON COLUMN sys_user.role IS '角色';
 COMMENT ON COLUMN sys_user.timezone IS '偏好时区';
 COMMENT ON COLUMN sys_user.locale IS '偏好语言';
-",
-            &[],
-        )
-        .await?;
-    Ok(())
-}
