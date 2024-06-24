@@ -3,7 +3,7 @@ use actix_web::{
     App, HttpServer, Responder,
 };
 use actix_web_lab::middleware;
-use chrono::{DateTime, Local};
+use chrono::{DateTime, Utc};
 use deadpool_postgres::{Manager, Pool};
 use serde::{Deserialize, Serialize};
 use std::ops::DerefMut;
@@ -78,7 +78,7 @@ impl<T: Serialize> ResJson<T> {
 }
 
 /// 通用字段
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 struct UniversalField {
     id: usize,
     /// 乐观锁
@@ -86,13 +86,33 @@ struct UniversalField {
     /// 创建人
     create_by: Option<usize>,
     /// 创建时间
-    create_time: Option<DateTime<Local>>,
+    create_time: Option<DateTime<Utc>>,
     /// 更新人
     update_by: Option<usize>,
     /// 更新时间
-    update_time: Option<DateTime<Local>>,
+    update_time: Option<DateTime<Utc>>,
     /// 是否删除，默认为false
     del_flag: bool,
+}
+
+impl IntoIterator for UniversalField {
+    type Item = Option<String>;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        vec![
+            Some(self.version.to_string()),
+            self.create_by.map(|id| id.to_string()),
+            self.create_time
+                .map(|time| time.timestamp_millis().to_string()),
+            self.update_by.map(|id| id.to_string()),
+            self.update_time
+                .map(|time| time.timestamp_millis().to_string()),
+            Some(self.del_flag.to_string()),
+            Some(self.id.to_string()),
+        ]
+        .into_iter()
+    }
 }
 
 /// 服务器错误

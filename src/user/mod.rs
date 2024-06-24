@@ -49,7 +49,7 @@ impl From<Error> for ResJson<()> {
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// 角色，用户类型
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone, Copy)]
 enum Role {
     /// 匿名用户
     AnonymousUser = -1,
@@ -60,20 +60,41 @@ enum Role {
 }
 
 /// 用户的基本注册信息，用于生成jwt令牌
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 struct UserData {
     /// 用户名
     username: String,
     /// 密码
     password: String,
     /// 偏好时区
-    timezone: i8,
+    timezone: String,
     /// 角色
     role: Role,
     /// 偏好语言
     locale: Language,
     /// 通用字段
     inner: crate::UniversalField,
+}
+
+impl IntoIterator for UserData {
+    type Item = Option<String>;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        let user = vec![
+            Some(self.username),
+            Some(self.password),
+            Some(self.timezone),
+            Some((self.role as i8).to_string()),
+            Some(self.locale.to_string()),
+        ];
+        // REVIEW: 这看起来有一些损耗，对...对吗？
+        self.inner
+            .into_iter()
+            .chain(user.into_iter())
+            .collect::<Vec<Option<String>>>()
+            .into_iter()
+    }
 }
 
 impl UserData {
