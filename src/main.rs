@@ -6,11 +6,13 @@ use actix_web_lab::middleware;
 use chrono::{DateTime, Local};
 use deadpool_postgres::{Manager, Pool};
 use serde::{Deserialize, Serialize};
+use std::ops::DerefMut;
 use tokio_postgres::{Config, NoTls};
 use user::{jwt, register};
 
-mod create_table;
 mod user;
+
+refinery::embed_migrations!("migrations");
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -27,9 +29,10 @@ async fn main() -> std::io::Result<()> {
     // TODO: 这里的池大小最好也从配置文件中读取
     let pool = Pool::builder(db_manager).max_size(16).build().unwrap();
 
-    create_table::create_user_table(&pool.get().await.unwrap())
-        .await
-        .unwrap();
+    // 执行表的创建
+    let mut connect = pool.get().await.unwrap();
+    let client = connect.deref_mut().deref_mut();
+    migrations::runner().run_async(client).await.unwrap();
 
     HttpServer::new(move || {
         App::new()
@@ -52,13 +55,11 @@ async fn ping() -> impl Responder {
 }
 
 /// 所有响应的返回格式
-/// REVIEW: 大家看看这样写成不？
 /// 计划error_code使用树形编码，一个十进制数，最低两位是业务分类，往前两位要么是子分类要么是具体错误类型
 /// * 00: 成功，其他位也是0
 /// * 01: user相关操作错误
 /// 具体错误类型见ERRORLIST.md(还没写)
 /// 其中只有含有低两位的错误为服务器错误，这种情况下，程序理论上应该抛出panic的地方但为了让前端知晓所以还是返回了
-/// REVIEW: 要不要换个名字？
 #[derive(Serialize)]
 struct ResJson<T> {
     error_flag: bool,
