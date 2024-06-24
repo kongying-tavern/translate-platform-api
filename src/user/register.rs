@@ -1,13 +1,22 @@
-use super::{Error, Result};
+use super::{Error, Result, UserData};
 use actix_web::{web, HttpMessage, HttpResponse};
 use deadpool_postgres::GenericClient;
+
+#[derive(serde::Deserialize, serde::Serialize)]
+pub struct Register {
+    pub username: String,
+    pub password: String,
+    pub role: i8,
+    pub timezone: String,
+    pub locale: String,
+}
 
 /// 新用户注册的请求处理函数，具体的操作在`register`函数中
 #[actix_web::post("/register")]
 pub async fn sv_register(
     db_pool: web::Data<deadpool_postgres::Pool>,
     req: actix_web::HttpRequest,
-    req_body: web::Json<super::UserData>,
+    req_body: web::Json<Register>,
 ) -> impl actix_web::Responder {
     match register(db_pool, req, req_body).await {
         Ok(_) => HttpResponse::Ok().json(crate::ResJson::new("注册成功")),
@@ -18,7 +27,7 @@ pub async fn sv_register(
 async fn register(
     db_pool: web::Data<deadpool_postgres::Pool>,
     req: actix_web::HttpRequest,
-    user_data: web::Json<super::UserData>,
+    req_body: web::Json<Register>,
 ) -> Result<()> {
     // 验证管理员权限
     match req
@@ -48,8 +57,10 @@ async fn register(
         .await
         .map_err(|e| Error::DatabaseOptFailed(e))?;
 
+    let user_data = UserData::from_register(req_body.into_inner(), 0)?;
+
     client
-        .execute_raw(&statement, user_data.0.into_iter())
+        .execute_raw(&statement, user_data.into_iter())
         .await
         .map_err(|e| Error::DatabaseOptFailed(e))?;
 

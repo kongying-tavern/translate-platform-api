@@ -2,6 +2,7 @@
 //! 之后想到的操作应该先写在这里
 
 use crate::ResJson;
+use chrono::Utc;
 use isolang::Language;
 use jsonwebtoken::errors::Error as JWTPkgError;
 use serde::{Deserialize, Serialize};
@@ -28,6 +29,8 @@ pub enum Error {
     PermissionDenied,
     /// 登陆错误
     LoginError(login::LoginError),
+    /// 非法地区字串
+    InvalidLocale,
 }
 
 impl From<Error> for ResJson<()> {
@@ -60,6 +63,10 @@ impl From<Error> for ResJson<()> {
                 Error::LoginError(e) => {
                     eprintln!("登陆失败：{:?}", e);
                     6
+                }
+                Error::InvalidLocale => {
+                    eprintln!("非法地区字串");
+                    7
                 }
             } * 100
                 + 1,
@@ -106,6 +113,38 @@ struct UserData {
     locale: Language,
     /// 通用字段
     inner: crate::UniversalField,
+}
+
+impl UserData {
+    /// 仅用于注册后进行插入数据库
+    fn from_register(data: register::Register, builder: u64) -> Result<Self> {
+        let inner = crate::UniversalField {
+            id: 0,
+            version: 1,
+            create_by: Some(builder),
+            create_time: Some(Utc::now()),
+            update_by: Some(builder),
+            update_time: Some(Utc::now()),
+            del_flag: false,
+        };
+
+        let locale = match Language::from_autonym(data.locale.as_str()) {
+            Some(locale) => locale,
+            None => return Err(Error::InvalidLocale),
+        };
+
+        let password = bcrypt::hash(data.password.as_str(), bcrypt::DEFAULT_COST)
+            .map_err(|_| Error::ServerError(crate::Error::ServerLogicError))?;
+
+        Ok(Self {
+            username: data.username,
+            password,
+            timezone: data.timezone,
+            role: data.role.into(),
+            locale,
+            inner,
+        })
+    }
 }
 
 impl IntoIterator for UserData {
