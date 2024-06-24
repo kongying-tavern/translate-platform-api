@@ -21,3 +21,4 @@ isolang = { version = "2.4.0", features = [
     "lowercase_names",
 ] }
 refinery = { version = "0.8.14", features = ["tokio-postgres", "postgres"] }
+bcrypt = "0.15.1"

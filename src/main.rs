@@ -8,7 +8,7 @@ use deadpool_postgres::{Manager, Pool};
 use serde::{Deserialize, Serialize};
 use std::ops::DerefMut;
 use tokio_postgres::{Config, NoTls};
-use user::{jwt, register};
+use user::{jwt, login, register};
 
 mod user;
 
@@ -42,6 +42,7 @@ async fn main() -> std::io::Result<()> {
                     .wrap(middleware::from_fn(jwt::mw_verify_jwt))
                     .service(register::sv_register),
             )
+            .service(login::sv_login)
             .service(ping)
     })
     .bind(("127.0.0.1", 8080))?

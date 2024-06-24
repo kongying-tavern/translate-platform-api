@@ -29,6 +29,7 @@ async fn register(
         super::Role::Administrator => (),
         _ => return Err(Error::PermissionDenied),
     };
+
     let client = db_pool
         .get()
         .await
@@ -45,12 +46,12 @@ async fn register(
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
         )
         .await
-        .map_err(|e| Error::DatabaseInsertionFailed(e))?;
+        .map_err(|e| Error::DatabaseOptFailed(e))?;
 
     client
         .execute_raw(&statement, user_data.0.into_iter())
         .await
-        .map_err(|e| Error::DatabaseInsertionFailed(e))?;
+        .map_err(|e| Error::DatabaseOptFailed(e))?;
 
     Ok(())
 }

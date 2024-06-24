@@ -1,7 +1,8 @@
+use super::{Error, Result};
 use actix_web::{self, body, dev, http::header, HttpMessage, HttpResponse};
 use actix_web_lab::middleware::Next;
 use chrono::Utc;
-use jsonwebtoken::{Algorithm, DecodingKey, Validation};
+use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 
 pub(super) const SECRET: &[u8] = "固定的secret".as_bytes();
@@ -34,14 +35,10 @@ impl Claims {
         self.exp += 60 * 60 * 24 * 7; // 1 周
         self
     }
-    pub fn new(sub: usize) -> Self {
+    pub fn new(sub: usize, role: super::Role) -> Self {
         let now = Utc::now().timestamp() as usize;
         let exp = now + 60 * 60; // 一小时有效期
-        Self {
-            sub,
-            exp,
-            role: super::Role::User,
-        }
+        Self { sub, exp, role }
     }
 }
 
@@ -50,7 +47,7 @@ impl Claims {
 pub async fn mw_verify_jwt(
     req: dev::ServiceRequest,
     next: Next<impl body::MessageBody + 'static>,
-) -> Result<dev::ServiceResponse<impl body::MessageBody + 'static>, actix_web::Error> {
+) -> std::result::Result<dev::ServiceResponse<impl body::MessageBody + 'static>, actix_web::Error> {
     println!("catch mw");
     // 测试是否由中间件拦截请求。应该在具体函数中处理Option，整个鉴权过程会有至少三种错误，所以封装在另一个函数中
     let jwt = req.headers().get(header::AUTHORIZATION);
@@ -83,4 +80,28 @@ async fn verify_jwt(jwt: Option<&header::HeaderValue>) -> super::Result<super::R
     )
     .map_err(|e| super::Error::JWTVerificationFailed(e))?;
     Ok(claims.claims.role)
+}
+
+/// 生成jwt令牌，返回两个令牌，第一个是普通令牌，第二个是刷新令牌。
+/// 默认情况下，普通令牌有效期为1小时，刷新令牌有效期为1周
+/// REVIEW: 我们需要可变的有效期吗？
+pub fn get_jwt(id: usize, role: super::Role) -> Result<(String, String)> {
+    let mut claims = Claims::new(id, role);
+
+    // TODO: 之后从env里面读
+
+    let token = jsonwebtoken::encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(SECRET),
+    )
+    .map_err(|e| Error::FailedToProduceJWT(e))?;
+
+    let refresh_token = jsonwebtoken::encode(
+        &Header::default(),
+        &claims.get_refresh_token(),
+        &EncodingKey::from_secret(SECRET),
+    )
+    .map_err(|e| Error::FailedToProduceJWT(e))?;
+    Ok((token, refresh_token))
 }

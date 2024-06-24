@@ -3,20 +3,21 @@
 
 use crate::ResJson;
 use isolang::Language;
-use jsonwebtoken::{errors::Error as JWTPkgError, EncodingKey, Header};
+use jsonwebtoken::errors::Error as JWTPkgError;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use tokio_postgres::error::Error as PostgresPkgError;
 
 pub mod jwt;
+pub mod login;
 pub mod register;
 
 #[derive(Debug)]
 pub enum Error {
     /// 通用错误
     ServerError(crate::Error),
-    /// 数据库插入失败
-    DatabaseInsertionFailed(PostgresPkgError),
+    /// 数据库操作失败
+    DatabaseOptFailed(PostgresPkgError),
     /// 生成JWT失败
     FailedToProduceJWT(JWTPkgError),
     /// JWT格式错误
@@ -25,6 +26,8 @@ pub enum Error {
     JWTVerificationFailed(JWTPkgError),
     /// 操作权限不足
     PermissionDenied,
+    /// 登陆错误
+    LoginError(login::LoginError),
 }
 
 impl From<Error> for ResJson<()> {
@@ -33,12 +36,31 @@ impl From<Error> for ResJson<()> {
         ResJson {
             error_flag: true,
             error_code: match e {
-                Error::ServerError(_) => 0,
-                Error::DatabaseInsertionFailed(_) => 1,
-                Error::FailedToProduceJWT(_) => 2,
-                Error::JWTFormatError(_) => 3,
-                Error::JWTVerificationFailed(_) => 4,
+                Error::ServerError(e) => {
+                    eprintln!("服务器错误：{:?}", e);
+                    0
+                }
+                Error::DatabaseOptFailed(e) => {
+                    eprintln!("数据库操作错误：{:?}", e);
+                    1
+                }
+                Error::FailedToProduceJWT(e) => {
+                    eprintln!("生成JWT失败{:?}", e);
+                    2
+                }
+                Error::JWTFormatError(e) => {
+                    eprintln!("JWT格式错误{:?}", e);
+                    3
+                }
+                Error::JWTVerificationFailed(e) => {
+                    eprintln!("JWT验证失败{:?}", e);
+                    4
+                }
                 Error::PermissionDenied => 5,
+                Error::LoginError(e) => {
+                    eprintln!("登陆失败：{:?}", e);
+                    6
+                }
             } * 100
                 + 1,
             data: None,
@@ -50,13 +72,23 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 /// 角色，用户类型
 #[derive(Debug, Deserialize, Serialize, Clone, Copy)]
-enum Role {
+pub enum Role {
     /// 匿名用户
     AnonymousUser = -1,
     /// 管理员
     Administrator = 0,
     /// 用户
     User = 1,
+}
+
+impl From<i8> for Role {
+    fn from(value: i8) -> Self {
+        match value {
+            -1 => Role::AnonymousUser,
+            0 => Role::Administrator,
+            _ => Role::User,
+        }
+    }
 }
 
 /// 用户的基本注册信息，用于生成jwt令牌
@@ -94,31 +126,5 @@ impl IntoIterator for UserData {
             .chain(user.into_iter())
             .collect::<Vec<Option<String>>>()
             .into_iter()
-    }
-}
-
-impl UserData {
-    /// 生成jwt令牌，返回两个令牌，第一个是普通令牌，第二个是刷新令牌。
-    /// 默认情况下，普通令牌有效期为1小时，刷新令牌有效期为1周
-    /// REVIEW: 我们需要可变的有效期吗？
-    async fn get_jwt(&self) -> Result<(String, String)> {
-        let mut claims = jwt::Claims::new(self.inner.id);
-
-        // TODO: 之后从env里面读
-
-        let token = jsonwebtoken::encode(
-            &Header::default(),
-            &claims,
-            &EncodingKey::from_secret(jwt::SECRET),
-        )
-        .map_err(|e| Error::FailedToProduceJWT(e))?;
-
-        let refresh_token = jsonwebtoken::encode(
-            &Header::default(),
-            &claims.get_refresh_token(),
-            &EncodingKey::from_secret(jwt::SECRET),
-        )
-        .map_err(|e| Error::FailedToProduceJWT(e))?;
-        Ok((token, refresh_token))
     }
 }
