@@ -7,7 +7,10 @@ use isolang::Language;
 use jsonwebtoken::errors::Error as JWTPkgError;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
-use tokio_postgres::error::Error as PostgresPkgError;
+use tokio_postgres::{
+    error::Error as PostgresPkgError,
+    types::{to_sql_checked, ToSql},
+};
 
 pub mod jwt;
 pub mod login;
@@ -78,7 +81,7 @@ impl From<Error> for ResJson<()> {
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// 角色，用户类型
-#[derive(Debug, Deserialize, Serialize, Clone, Copy)]
+#[derive(Debug, Deserialize, Serialize, Clone, Copy, PartialEq)]
 pub enum Role {
     /// 匿名用户
     AnonymousUser = -1,
@@ -88,8 +91,8 @@ pub enum Role {
     User = 1,
 }
 
-impl From<i8> for Role {
-    fn from(value: i8) -> Self {
+impl From<i32> for Role {
+    fn from(value: i32) -> Self {
         match value {
             -1 => Role::AnonymousUser,
             0 => Role::Administrator,
@@ -128,7 +131,7 @@ impl UserData {
             del_flag: false,
         };
 
-        let locale = match Language::from_autonym(data.locale.as_str()) {
+        let locale = match Language::from_locale(data.locale.as_str()) {
             Some(locale) => locale,
             None => return Err(Error::InvalidLocale),
         };
@@ -155,8 +158,8 @@ impl IntoIterator for UserData {
         let user = vec![
             Some(self.username),
             Some(self.password),
+            Some((self.role as i32).to_string()),
             Some(self.timezone),
-            Some((self.role as i8).to_string()),
             Some(self.locale.to_string()),
         ];
         // REVIEW: 这看起来有一些损耗，对...对吗？
@@ -166,4 +169,35 @@ impl IntoIterator for UserData {
             .collect::<Vec<Option<String>>>()
             .into_iter()
     }
+}
+
+impl<'a> ToSql for UserData {
+    fn to_sql(
+        &self,
+        ty: &Type,
+        out: &mut bytes::BytesMut,
+    ) -> Result<IsNull, Box<dyn Error + Sync + Send>>
+    where
+        Self: Sized,
+    {
+        let mut map = std::collections::HashMap::new();
+        map.insert("username", &self.username as &dyn ToSql);
+        map.insert("password", &self.password as &dyn ToSql);
+        map.insert("timezone", &self.timezone as &dyn ToSql);
+        map.insert("role", &self.role as &dyn ToSql);
+        map.insert("locale", &self.locale as &dyn ToSql);
+        // 对于复杂的类型，如 inner，可能需要特殊处理
+        // map.insert("inner", &self.inner as &dyn ToSql);
+
+        // 使用 postgres 的 JSON 支持将 map 转换为 JSON 字符串，并写入 out
+        let json = serde_json::to_string(&map)?;
+        out.extend_from_slice(json.as_bytes());
+        Ok(IsNull::No)
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        *ty == Type::JSON || *ty == Type::JSONB
+    }
+
+    to_sql_checked!();
 }

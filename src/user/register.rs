@@ -1,12 +1,12 @@
 use super::{Error, Result, UserData};
 use actix_web::{web, HttpMessage, HttpResponse};
-use deadpool_postgres::GenericClient;
+// use deadpool_postgres::GenericClient;
 
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct Register {
     pub username: String,
     pub password: String,
-    pub role: i8,
+    pub role: i32,
     pub timezone: String,
     pub locale: String,
 }
@@ -46,13 +46,12 @@ async fn register(
 
     let statement = client
         .prepare(
-            "inset into sys_user (
-                    id, username, password, 
-                    role, timezone, locale, 
-                    version, create_time, 
-                    update_by, update_time, 
-                    del_flag) 
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
+            "INSERT INTO public.sys_user
+                    (\"version\", creator_id, create_time, 
+                    updater_id, update_time, del_flag, 
+                    username, \"password\", \"role\", 
+                    timezone, locale)
+                    VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);",
         )
         .await
         .map_err(|e| Error::DatabaseOptFailed(e))?;
@@ -60,9 +59,16 @@ async fn register(
     let user_data = UserData::from_register(req_body.into_inner(), 0)?;
 
     client
-        .execute_raw(&statement, user_data.into_iter())
+        .execute(&statement, user_data.into_iter())
         .await
         .map_err(|e| Error::DatabaseOptFailed(e))?;
 
     Ok(())
+}
+
+#[test]
+fn test_b() {
+    let hash = bcrypt::hash("password", bcrypt::DEFAULT_COST).unwrap();
+    println!("明文：password，密文：{}", hash);
+    assert!(bcrypt::verify("password", &hash).unwrap());
 }

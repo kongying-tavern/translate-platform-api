@@ -22,7 +22,7 @@ pub enum JWTErrorCase {
 #[derive(Serialize, Deserialize)]
 pub struct Claims {
     /// 所有者
-    sub: usize,
+    sub: i32,
     /// 超时时间
     exp: usize,
     /// 用户角色
@@ -32,12 +32,12 @@ pub struct Claims {
 impl Claims {
     /// 得到刷新用的令牌
     pub fn get_refresh_token(&mut self) -> &Self {
-        self.exp += 60 * 60 * 24 * 7; // 1 周
+        self.exp += 60 * 60 * 60 * 24 * 7; // 1 周
         self
     }
-    pub fn new(sub: usize, role: super::Role) -> Self {
+    pub fn new(sub: i32, role: super::Role) -> Self {
         let now = Utc::now().timestamp() as usize;
-        let exp = now + 60 * 60; // 一小时有效期
+        let exp = now + 60 * 60 * 60; // 一小时有效期
         Self { sub, exp, role }
     }
 }
@@ -85,7 +85,7 @@ async fn verify_jwt(jwt: Option<&header::HeaderValue>) -> super::Result<super::R
 /// 生成jwt令牌，返回两个令牌，第一个是普通令牌，第二个是刷新令牌。
 /// 默认情况下，普通令牌有效期为1小时，刷新令牌有效期为1周
 /// REVIEW: 我们需要可变的有效期吗？
-pub fn get_jwt(id: usize, role: super::Role) -> Result<(String, String)> {
+pub fn get_jwt(id: i32, role: super::Role) -> Result<(String, String)> {
     let mut claims = Claims::new(id, role);
 
     // TODO: 之后从env里面读
@@ -104,4 +104,27 @@ pub fn get_jwt(id: usize, role: super::Role) -> Result<(String, String)> {
     )
     .map_err(|e| Error::FailedToProduceJWT(e))?;
     Ok((token, refresh_token))
+}
+
+#[test]
+fn test_encode_decode_jwt() {
+    // Generate a JWT token
+    let id = 123;
+    let role = super::Role::Administrator;
+    let (token, _) = get_jwt(id, role).unwrap();
+
+    println!("token: {}", token);
+
+    // Decode the JWT token
+    let decoded = jsonwebtoken::decode::<Claims>(
+        &token,
+        &DecodingKey::from_secret(SECRET),
+        &Validation::new(Algorithm::HS256),
+    )
+    .map_err(|e| super::Error::JWTVerificationFailed(e))
+    .unwrap();
+
+    // Verify the decoded claims
+    assert_eq!(decoded.claims.sub, id);
+    assert_eq!(decoded.claims.role, role);
 }

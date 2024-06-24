@@ -82,7 +82,7 @@ impl<T: Serialize> ResJson<T> {
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 struct UniversalField {
     /// ID为数据库自增，不会进入迭代器
-    id: u64,
+    id: i32,
     /// 乐观锁
     version: u32,
     /// 创建人
@@ -111,7 +111,6 @@ impl IntoIterator for UniversalField {
             self.update_time
                 .map(|time| time.timestamp_millis().to_string()),
             Some(self.del_flag.to_string()),
-            Some(self.id.to_string()),
         ]
         .into_iter()
     }

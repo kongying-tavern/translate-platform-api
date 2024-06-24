@@ -3,7 +3,7 @@ use crate::user::Role;
 use super::{jwt, Error, Result};
 use actix_web::{web, HttpResponse};
 
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(serde::Deserialize, serde::Serialize, Debug)]
 struct Login {
     username: String,
     password: String,
@@ -11,7 +11,7 @@ struct Login {
 
 #[derive(serde::Serialize)]
 struct LoginRes {
-    role: i8,
+    role: i32,
     timezone: String,
     locale: String,
     token: String,
@@ -30,6 +30,7 @@ pub async fn sv_login(
     db_pool: web::Data<deadpool_postgres::Pool>,
     req_body: web::Json<Login>,
 ) -> impl actix_web::Responder {
+    println!("{:?}", req_body);
     match login(db_pool, req_body).await {
         Ok(token) => HttpResponse::Ok().json(crate::ResJson::new(token)),
         Err(e) => HttpResponse::Forbidden().json(crate::ResJson::from(e)),
@@ -59,7 +60,12 @@ async fn login(
     let rows = client
         .query(&statement[0], &[&req_body.username])
         .await
-        .map_err(|_| Error::LoginError(LoginError::UserNotFound))?;
+        .map_err(|e| {
+            println!("{e:?}");
+            Error::LoginError(LoginError::UserNotFound)
+        })?;
+
+    println!("{:?}", rows);
 
     match rows.iter().find_map(|row| {
         let hashed = row.get::<_, String>(0);
@@ -69,13 +75,15 @@ async fn login(
         }
     }) {
         Some(row) => {
-            let id = row.get::<_, u32>(1);
-            let row = client
-                .query_one(&statement[1], &[&id])
-                .await
-                .map_err(|_| Error::LoginError(LoginError::UserNotFound))?;
-            let role = row.get::<_, i8>(0);
-            let token = jwt::get_jwt(id as usize, Role::from(role))?;
+            println!("{:?}", row);
+            let id = row.get::<_, i32>(1) as i32;
+            println!("{:?}", id);
+            let row = client.query_one(&statement[1], &[&id]).await.map_err(|e| {
+                println!("{e:?}");
+                Error::LoginError(LoginError::UserNotFound)
+            })?;
+            let role = row.get::<_, i32>(0);
+            let token = jwt::get_jwt(id, Role::from(role))?;
             Ok(LoginRes {
                 role,
                 timezone: row.get::<_, String>(1),
