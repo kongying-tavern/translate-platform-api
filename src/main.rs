@@ -5,47 +5,40 @@ use actix_web::{
 use actix_web_lab::middleware;
 use chrono::{DateTime, Duration, Utc};
 use migration::{Migrator, MigratorTrait};
-use sea_orm::{ConnectOptions, Database};
+use sea_orm::SqlxPostgresConnector;
 use serde::{Deserialize, Serialize};
+use sqlx::postgres::PgPoolOptions;
 use user::{jwt, login, register};
 
+mod entity;
 mod user;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    // 数据库初始化
     // TODO: 之后需要从args中导出
-    let config = ConnectOptions::new("postgres://postgres:dev_password@localhost:5432")
+    let config = PgPoolOptions::new()
         .max_connections(128)
         .min_connections(16)
-        .connect_timeout(Duration::seconds(8).to_std().unwrap())
         .acquire_timeout(Duration::seconds(8).to_std().unwrap())
         .idle_timeout(Duration::seconds(8).to_std().unwrap())
-        .max_lifetime(Duration::seconds(8).to_std().unwrap())
-        .sqlx_logging(true)
-        .sqlx_logging_level(log::LevelFilter::Info);
+        .max_lifetime(Duration::seconds(8).to_std().unwrap());
 
-    let db = Database::connect(config.into()).await.unwrap();
+    let pool = config
+        .connect("postgres://postgres:dev_password@localhost:5432")
+        .await
+        .unwrap();
+
+    let db = SqlxPostgresConnector::from_sqlx_postgres_pool(pool.clone());
+
     // 创建表
     Migrator::up(&db, None).await.unwrap();
 
-    // sea-orm官网上的连接测试，但没法运行
-
-    // |db: DatabaseConnection| async {
-    //     assert!(db.ping().await.is_ok());
-    //     db.clone().close().await; // 问题出在这里，没实现Clone，很奇怪
-    //     assert!(matches!(db.ping().await, Err(DbErr::ConnectionAcquire(_))));
-    // };
-
-    // sea-orm官网标注的log初始化
+    // log初始化
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::DEBUG)
         .with_test_writer()
         .init();
-
-    // 执行表的创建
-    let mut connect = pool.get().await.unwrap();
-    let client = connect.deref_mut().deref_mut();
-    migrations::runner().run_async(client).await.unwrap();
 
     HttpServer::new(move || {
         App::new()
@@ -137,32 +130,4 @@ enum Error {
     ServerLogicError,
     /// 数据库连接失败
     DatabaseConnectionFailed,
-}
-
-#[actix_web::test]
-/// 测试正常访问postgres
-async fn test_tokio_postgres() {
-    use actix_web::rt;
-    use tokio_postgres::NoTls;
-    // TODO：之后将密码设置为读取内置文件填写，开发阶段就先这样吧
-    let (client, connection) =
-        tokio_postgres::connect("host=localhost user=postgres password=dev_password", NoTls)
-            .await
-            .unwrap();
-
-    rt::spawn(async move {
-        if let Err(e) = connection.await {
-            eprintln!("connection error: {}", e);
-        }
-    });
-
-    // Now we can execute a simple statement that just returns its parameter.
-    let rows = client
-        .query("SELECT $1::TEXT", &[&"hello world"])
-        .await
-        .unwrap();
-
-    // And then check that we got back the same string we sent over.
-    let value: &str = rows[0].get(0);
-    assert_eq!(value, "hello world");
 }

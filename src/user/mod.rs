@@ -7,7 +7,6 @@ use isolang::Language;
 use jsonwebtoken::errors::Error as JWTPkgError;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
-use tokio_postgres::error::Error as PostgresPkgError;
 
 pub mod jwt;
 pub mod login;
@@ -18,7 +17,7 @@ pub enum Error {
     /// 通用错误
     ServerError(crate::Error),
     /// 数据库操作失败
-    DatabaseOptFailed(PostgresPkgError),
+    DatabaseOptFailed,
     /// 生成JWT失败
     FailedToProduceJWT(JWTPkgError),
     /// JWT格式错误
@@ -43,7 +42,7 @@ impl From<Error> for ResJson<()> {
                     eprintln!("服务器错误：{:?}", e);
                     0
                 }
-                Error::DatabaseOptFailed(e) => {
+                Error::DatabaseOptFailed => {
                     eprintln!("数据库操作错误：{:?}", e);
                     1
                 }
@@ -95,75 +94,5 @@ impl From<i32> for Role {
             0 => Role::Administrator,
             _ => Role::User,
         }
-    }
-}
-
-/// 用户的基本注册信息，用于生成jwt令牌
-#[derive(Debug, Deserialize, Serialize, Clone)]
-struct UserData {
-    /// 用户名
-    username: String,
-    /// 密码
-    password: String,
-    /// 偏好时区
-    timezone: String,
-    /// 角色
-    role: Role,
-    /// 偏好语言
-    locale: Language,
-    /// 通用字段
-    inner: crate::UniversalField,
-}
-
-impl UserData {
-    /// 仅用于注册后进行插入数据库
-    fn from_register(data: register::Register, builder: u64) -> Result<Self> {
-        let inner = crate::UniversalField {
-            id: 0,
-            version: 1,
-            create_by: Some(builder),
-            create_time: Some(Utc::now()),
-            update_by: Some(builder),
-            update_time: Some(Utc::now()),
-            del_flag: false,
-        };
-
-        let locale = match Language::from_locale(data.locale.as_str()) {
-            Some(locale) => locale,
-            None => return Err(Error::InvalidLocale),
-        };
-
-        let password = bcrypt::hash(data.password.as_str(), bcrypt::DEFAULT_COST)
-            .map_err(|_| Error::ServerError(crate::Error::ServerLogicError))?;
-
-        Ok(Self {
-            username: data.username,
-            password,
-            timezone: data.timezone,
-            role: data.role.into(),
-            locale,
-            inner,
-        })
-    }
-}
-
-impl IntoIterator for UserData {
-    type Item = Option<String>;
-    type IntoIter = std::vec::IntoIter<Self::Item>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        let user = vec![
-            Some(self.username),
-            Some(self.password),
-            Some((self.role as i32).to_string()),
-            Some(self.timezone),
-            Some(self.locale.to_string()),
-        ];
-        // REVIEW: 这看起来有一些损耗，对...对吗？
-        self.inner
-            .into_iter()
-            .chain(user.into_iter())
-            .collect::<Vec<Option<String>>>()
-            .into_iter()
     }
 }
