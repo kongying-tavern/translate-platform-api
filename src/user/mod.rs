@@ -7,10 +7,7 @@ use isolang::Language;
 use jsonwebtoken::errors::Error as JWTPkgError;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
-use tokio_postgres::{
-    error::Error as PostgresPkgError,
-    types::{to_sql_checked, ToSql},
-};
+use tokio_postgres::error::Error as PostgresPkgError;
 
 pub mod jwt;
 pub mod login;
@@ -169,35 +166,4 @@ impl IntoIterator for UserData {
             .collect::<Vec<Option<String>>>()
             .into_iter()
     }
-}
-
-impl<'a> ToSql for UserData {
-    fn to_sql(
-        &self,
-        ty: &Type,
-        out: &mut bytes::BytesMut,
-    ) -> Result<IsNull, Box<dyn Error + Sync + Send>>
-    where
-        Self: Sized,
-    {
-        let mut map = std::collections::HashMap::new();
-        map.insert("username", &self.username as &dyn ToSql);
-        map.insert("password", &self.password as &dyn ToSql);
-        map.insert("timezone", &self.timezone as &dyn ToSql);
-        map.insert("role", &self.role as &dyn ToSql);
-        map.insert("locale", &self.locale as &dyn ToSql);
-        // 对于复杂的类型，如 inner，可能需要特殊处理
-        // map.insert("inner", &self.inner as &dyn ToSql);
-
-        // 使用 postgres 的 JSON 支持将 map 转换为 JSON 字符串，并写入 out
-        let json = serde_json::to_string(&map)?;
-        out.extend_from_slice(json.as_bytes());
-        Ok(IsNull::No)
-    }
-
-    fn accepts(ty: &Type) -> bool {
-        *ty == Type::JSON || *ty == Type::JSONB
-    }
-
-    to_sql_checked!();
 }

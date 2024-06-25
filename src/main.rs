@@ -3,31 +3,44 @@ use actix_web::{
     App, HttpServer, Responder,
 };
 use actix_web_lab::middleware;
-use chrono::{DateTime, Utc};
-use deadpool_postgres::{Manager, Pool};
+use chrono::{DateTime, Duration, Utc};
+use migration::{Migrator, MigratorTrait};
+use sea_orm::{ConnectOptions, Database};
 use serde::{Deserialize, Serialize};
-use std::ops::DerefMut;
-use tokio_postgres::{Config, NoTls};
 use user::{jwt, login, register};
 
 mod user;
 
-refinery::embed_migrations!("migrations");
-
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    // 数据库配置
-    // TODO: 别忘记配置线程数
-    let db_manager = Manager::new(
-        Config::new()
-            .host("localhost")
-            .user("postgres")
-            .password("dev_password")
-            .to_owned(),
-        NoTls,
-    );
-    // TODO: 这里的池大小最好也从配置文件中读取
-    let pool = Pool::builder(db_manager).max_size(16).build().unwrap();
+    // TODO: 之后需要从args中导出
+    let config = ConnectOptions::new("postgres://postgres:dev_password@localhost:5432")
+        .max_connections(128)
+        .min_connections(16)
+        .connect_timeout(Duration::seconds(8).to_std().unwrap())
+        .acquire_timeout(Duration::seconds(8).to_std().unwrap())
+        .idle_timeout(Duration::seconds(8).to_std().unwrap())
+        .max_lifetime(Duration::seconds(8).to_std().unwrap())
+        .sqlx_logging(true)
+        .sqlx_logging_level(log::LevelFilter::Info);
+
+    let db = Database::connect(config.into()).await.unwrap();
+    // 创建表
+    Migrator::up(&db, None).await.unwrap();
+
+    // sea-orm官网上的连接测试，但没法运行
+
+    // |db: DatabaseConnection| async {
+    //     assert!(db.ping().await.is_ok());
+    //     db.clone().close().await; // 问题出在这里，没实现Clone，很奇怪
+    //     assert!(matches!(db.ping().await, Err(DbErr::ConnectionAcquire(_))));
+    // };
+
+    // sea-orm官网标注的log初始化
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::DEBUG)
+        .with_test_writer()
+        .init();
 
     // 执行表的创建
     let mut connect = pool.get().await.unwrap();

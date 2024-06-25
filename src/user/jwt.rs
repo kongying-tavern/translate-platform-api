@@ -5,6 +5,7 @@ use chrono::Utc;
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 
+// TODO: 之后从env里面读
 pub(super) const SECRET: &[u8] = "固定的secret".as_bytes();
 
 /// JWT操作中更加具体的错误细节
@@ -87,9 +88,6 @@ async fn verify_jwt(jwt: Option<&header::HeaderValue>) -> super::Result<super::R
 /// REVIEW: 我们需要可变的有效期吗？
 pub fn get_jwt(id: i32, role: super::Role) -> Result<(String, String)> {
     let mut claims = Claims::new(id, role);
-
-    // TODO: 之后从env里面读
-
     let token = jsonwebtoken::encode(
         &Header::default(),
         &claims,

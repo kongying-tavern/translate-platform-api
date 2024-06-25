@@ -1,6 +1,5 @@
 use super::{Error, Result, UserData};
 use actix_web::{web, HttpMessage, HttpResponse};
-// use deadpool_postgres::GenericClient;
 
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct Register {
