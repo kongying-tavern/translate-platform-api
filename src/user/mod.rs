@@ -2,9 +2,8 @@
 //! 之后想到的操作应该先写在这里
 
 use crate::ResJson;
-use chrono::Utc;
-use isolang::Language;
 use jsonwebtoken::errors::Error as JWTPkgError;
+use sea_orm::DbErr;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
@@ -17,7 +16,7 @@ pub enum Error {
     /// 通用错误
     ServerError(crate::Error),
     /// 数据库操作失败
-    DatabaseOptFailed,
+    DatabaseOptFailed(DbErr),
     /// 生成JWT失败
     FailedToProduceJWT(JWTPkgError),
     /// JWT格式错误

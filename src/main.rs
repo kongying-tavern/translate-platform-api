@@ -42,7 +42,7 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(move || {
         App::new()
-            .app_data(Data::new(pool.clone()))
+            .app_data(Data::new([db.clone()])) // 这里必须要用一个类型包起来，不然传参会报错，所以用数组吧
             .service(
                 web::scope("/user")
                     .wrap(middleware::from_fn(jwt::mw_verify_jwt))
