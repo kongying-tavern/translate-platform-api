@@ -22,3 +22,5 @@ isolang = { version = "2.4.0", features = [
 ] }
 refinery = { version = "0.8.14", features = ["tokio-postgres", "postgres"] }
 bcrypt = "0.15.1"
+sea-orm = { version = "0.12.15", features = ["mock", "runtime-actix", "sqlx-postgres"] }
+sqlx = { version = "0.7.4", features = ["runtime-tokio"] }
