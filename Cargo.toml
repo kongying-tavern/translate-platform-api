@@ -6,21 +6,27 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+# 基础服务
 log = "0.4.21"
-log4rs = "1.3.0"
-actix-web = "4.8.0"
-tokio-postgres = "0.7.10"
 serde = "1.0.203"
-deadpool-postgres = "0.14.0"
-jsonwebtoken = "9.3.0"
 chrono = { version = "0.4.38", features = ["serde"] }
+tracing = { version = "0.1.40", features = ["async-await"] }
+tracing-subscriber = { version = "0.3.18", features = ["chrono"] }
+
+# 网络相关
+actix-web = "4.8.0"
 actix-web-lab = "0.20.2"
-isolang = { version = "2.4.0", features = [
-    "local_names",
-    "serde",
-    "lowercase_names",
+jsonwebtoken = "9.3.0"
+
+# 数据库相关
+sea-orm = { version = "0.12.15", features = [
+    "debug-print",
+    "mock",
+    "runtime-actix",
+    "sqlx-postgres",
 ] }
-refinery = { version = "0.8.14", features = ["tokio-postgres", "postgres"] }
-bcrypt = "0.15.1"
-sea-orm = { version = "0.12.15", features = ["mock", "runtime-actix", "sqlx-postgres"] }
 sqlx = { version = "0.7.4", features = ["runtime-tokio"] }
+
+# 业务功能
+isolang = { version = "2.4.0", features = ["serde"] }
+bcrypt = "0.15.1"
