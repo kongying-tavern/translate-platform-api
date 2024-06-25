@@ -16,7 +16,7 @@ pub struct Register {
 impl Register {
     fn into_sys_user(&self, creator_id: i32) -> Result<sys_user::ActiveModel> {
         // 检查地区是否合法
-        isolang::Language::from_name(&self.locale).ok_or(Error::InvalidLocale)?;
+        isolang::Language::from_locale(&self.locale).ok_or(Error::InvalidLocale)?;
 
         Ok(sys_user::ActiveModel {
             version: ActiveValue::Set(1),

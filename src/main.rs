@@ -84,44 +84,6 @@ impl<T: Serialize> ResJson<T> {
     }
 }
 
-/// 通用字段
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-struct UniversalField {
-    /// ID为数据库自增，不会进入迭代器
-    id: i32,
-    /// 乐观锁
-    version: u32,
-    /// 创建人
-    create_by: Option<u64>,
-    /// 创建时间
-    create_time: Option<DateTime<Utc>>,
-    /// 更新人
-    update_by: Option<u64>,
-    /// 更新时间
-    update_time: Option<DateTime<Utc>>,
-    /// 是否删除，默认为false
-    del_flag: bool,
-}
-
-impl IntoIterator for UniversalField {
-    type Item = Option<String>;
-    type IntoIter = std::vec::IntoIter<Self::Item>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        vec![
-            Some(self.version.to_string()),
-            self.create_by.map(|id| id.to_string()),
-            self.create_time
-                .map(|time| time.timestamp_millis().to_string()),
-            self.update_by.map(|id| id.to_string()),
-            self.update_time
-                .map(|time| time.timestamp_millis().to_string()),
-            Some(self.del_flag.to_string()),
-        ]
-        .into_iter()
-    }
-}
-
 /// 服务器错误
 /// 一些应该panic的地方为了能让前端知道，就用这个
 #[derive(Debug)]

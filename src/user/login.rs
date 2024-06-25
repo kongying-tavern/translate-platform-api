@@ -52,9 +52,13 @@ async fn login(db: web::Data<[DbConn; 1]>, req_body: web::Json<Login>) -> Result
         .column(sys_user::Column::Password)
         .column(sys_user::Column::Id)
         .filter(sys_user::Column::Username.eq(req_body.username.clone()))
+        .filter(sys_user::Column::DelFlag.eq(false))
         .all(&db[0])
         .await
-        .map_err(|e| Error::DatabaseOptFailed(e))?;
+        .map_err(|e| Error::DatabaseOptFailed(e));
+
+    println!("{:?}", users);
+    let users = users?;
 
     let id = users
         .iter()
@@ -65,6 +69,8 @@ async fn login(db: web::Data<[DbConn; 1]>, req_body: web::Json<Login>) -> Result
             },
         )
         .ok_or(LoginError::UserNotFound)?;
+
+    println!("id: {}", id);
 
     let user = SysUser::find_by_id(id)
         .one(&db[0])

@@ -5,6 +5,7 @@ use crate::ResJson;
 use sea_orm::DbErr;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
+use tracing::field::debug;
 
 pub mod jwt;
 pub mod login;
@@ -29,6 +30,7 @@ pub enum Error {
 impl From<Error> for ResJson<()> {
     fn from(e: Error) -> Self {
         // TODO: 之后把错误输出搬到这里
+        debug(&e);
         ResJson {
             error_flag: true,
             error_code: match e {
