@@ -2,7 +2,6 @@
 //! 之后想到的操作应该先写在这里
 
 use crate::ResJson;
-use jsonwebtoken::errors::Error as JWTPkgError;
 use sea_orm::DbErr;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
@@ -17,12 +16,8 @@ pub enum Error {
     ServerError(crate::Error),
     /// 数据库操作失败
     DatabaseOptFailed(DbErr),
-    /// 生成JWT失败
-    FailedToProduceJWT(JWTPkgError),
-    /// JWT格式错误
-    JWTFormatError(jwt::JWTErrorCase),
     /// JWT鉴权失败
-    JWTVerificationFailed(JWTPkgError),
+    JWTError(jwt::JWTErrorCase),
     /// 操作权限不足
     PermissionDenied,
     /// 登陆错误
@@ -37,35 +32,12 @@ impl From<Error> for ResJson<()> {
         ResJson {
             error_flag: true,
             error_code: match e {
-                Error::ServerError(e) => {
-                    eprintln!("服务器错误：{:?}", e);
-                    0
-                }
-                Error::DatabaseOptFailed => {
-                    eprintln!("数据库操作错误：{:?}", e);
-                    1
-                }
-                Error::FailedToProduceJWT(e) => {
-                    eprintln!("生成JWT失败{:?}", e);
-                    2
-                }
-                Error::JWTFormatError(e) => {
-                    eprintln!("JWT格式错误{:?}", e);
-                    3
-                }
-                Error::JWTVerificationFailed(e) => {
-                    eprintln!("JWT验证失败{:?}", e);
-                    4
-                }
-                Error::PermissionDenied => 5,
-                Error::LoginError(e) => {
-                    eprintln!("登陆失败：{:?}", e);
-                    6
-                }
-                Error::InvalidLocale => {
-                    eprintln!("非法地区字串");
-                    7
-                }
+                Error::ServerError(_) => 0,
+                Error::DatabaseOptFailed(_) => 1,
+                Error::JWTError(_) => 2,
+                Error::PermissionDenied => 3,
+                Error::LoginError(_) => 4,
+                Error::InvalidLocale => 5,
             } * 100
                 + 1,
             data: None,
