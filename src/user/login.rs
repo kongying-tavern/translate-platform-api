@@ -48,7 +48,7 @@ pub async fn sv_login(
 
 async fn login(db: web::Data<[DbConn; 1]>, req_body: web::Json<Login>) -> Result<LoginRes> {
     let users = SysUser::find()
-        .select_only()
+        // .select_only()
         .column(sys_user::Column::Password)
         .column(sys_user::Column::Id)
         .filter(sys_user::Column::Username.eq(req_body.username.clone()))
