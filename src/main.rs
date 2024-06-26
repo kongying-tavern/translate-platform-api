@@ -3,40 +3,46 @@ use actix_web::{
     App, HttpServer, Responder,
 };
 use actix_web_lab::middleware;
-use chrono::{DateTime, Utc};
-use deadpool_postgres::{Manager, Pool};
+use chrono::{DateTime, Duration, Utc};
+use migration::{Migrator, MigratorTrait};
+use sea_orm::SqlxPostgresConnector;
 use serde::{Deserialize, Serialize};
-use std::ops::DerefMut;
-use tokio_postgres::{Config, NoTls};
+use sqlx::postgres::PgPoolOptions;
 use user::{jwt, login, register};
 
+mod entity;
 mod user;
-
-refinery::embed_migrations!("migrations");
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    // 数据库配置
-    // TODO: 别忘记配置线程数
-    let db_manager = Manager::new(
-        Config::new()
-            .host("localhost")
-            .user("postgres")
-            .password("dev_password")
-            .to_owned(),
-        NoTls,
-    );
-    // TODO: 这里的池大小最好也从配置文件中读取
-    let pool = Pool::builder(db_manager).max_size(16).build().unwrap();
+    // 数据库初始化
+    // TODO: 之后需要从args中导出
+    let config = PgPoolOptions::new()
+        .max_connections(128)
+        .min_connections(16)
+        .acquire_timeout(Duration::seconds(8).to_std().unwrap())
+        .idle_timeout(Duration::seconds(8).to_std().unwrap())
+        .max_lifetime(Duration::seconds(8).to_std().unwrap());
 
-    // 执行表的创建
-    let mut connect = pool.get().await.unwrap();
-    let client = connect.deref_mut().deref_mut();
-    migrations::runner().run_async(client).await.unwrap();
+    let pool = config
+        .connect("postgres://postgres:dev_password@localhost:5432")
+        .await
+        .unwrap();
+
+    let db = SqlxPostgresConnector::from_sqlx_postgres_pool(pool.clone());
+
+    // 创建表
+    Migrator::up(&db, None).await.unwrap();
+
+    // log初始化
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::DEBUG)
+        .with_test_writer()
+        .init();
 
     HttpServer::new(move || {
         App::new()
-            .app_data(Data::new(pool.clone()))
+            .app_data(Data::new([db.clone()])) // 这里必须要用一个类型包起来，不然传参会报错，所以用数组吧
             .service(
                 web::scope("/user")
                     .wrap(middleware::from_fn(jwt::mw_verify_jwt))
@@ -78,44 +84,6 @@ impl<T: Serialize> ResJson<T> {
     }
 }
 
-/// 通用字段
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-struct UniversalField {
-    /// ID为数据库自增，不会进入迭代器
-    id: i32,
-    /// 乐观锁
-    version: u32,
-    /// 创建人
-    create_by: Option<u64>,
-    /// 创建时间
-    create_time: Option<DateTime<Utc>>,
-    /// 更新人
-    update_by: Option<u64>,
-    /// 更新时间
-    update_time: Option<DateTime<Utc>>,
-    /// 是否删除，默认为false
-    del_flag: bool,
-}
-
-impl IntoIterator for UniversalField {
-    type Item = Option<String>;
-    type IntoIter = std::vec::IntoIter<Self::Item>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        vec![
-            Some(self.version.to_string()),
-            self.create_by.map(|id| id.to_string()),
-            self.create_time
-                .map(|time| time.timestamp_millis().to_string()),
-            self.update_by.map(|id| id.to_string()),
-            self.update_time
-                .map(|time| time.timestamp_millis().to_string()),
-            Some(self.del_flag.to_string()),
-        ]
-        .into_iter()
-    }
-}
-
 /// 服务器错误
 /// 一些应该panic的地方为了能让前端知道，就用这个
 #[derive(Debug)]
@@ -124,32 +92,4 @@ enum Error {
     ServerLogicError,
     /// 数据库连接失败
     DatabaseConnectionFailed,
-}
-
-#[actix_web::test]
-/// 测试正常访问postgres
-async fn test_tokio_postgres() {
-    use actix_web::rt;
-    use tokio_postgres::NoTls;
-    // TODO：之后将密码设置为读取内置文件填写，开发阶段就先这样吧
-    let (client, connection) =
-        tokio_postgres::connect("host=localhost user=postgres password=dev_password", NoTls)
-            .await
-            .unwrap();
-
-    rt::spawn(async move {
-        if let Err(e) = connection.await {
-            eprintln!("connection error: {}", e);
-        }
-    });
-
-    // Now we can execute a simple statement that just returns its parameter.
-    let rows = client
-        .query("SELECT $1::TEXT", &[&"hello world"])
-        .await
-        .unwrap();
-
-    // And then check that we got back the same string we sent over.
-    let value: &str = rows[0].get(0);
-    assert_eq!(value, "hello world");
 }

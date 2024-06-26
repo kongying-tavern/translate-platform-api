@@ -2,15 +2,10 @@
 //! 之后想到的操作应该先写在这里
 
 use crate::ResJson;
-use chrono::Utc;
-use isolang::Language;
-use jsonwebtoken::errors::Error as JWTPkgError;
+use sea_orm::DbErr;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
-use tokio_postgres::{
-    error::Error as PostgresPkgError,
-    types::{to_sql_checked, ToSql},
-};
+use tracing::field::debug;
 
 pub mod jwt;
 pub mod login;
@@ -21,13 +16,9 @@ pub enum Error {
     /// 通用错误
     ServerError(crate::Error),
     /// 数据库操作失败
-    DatabaseOptFailed(PostgresPkgError),
-    /// 生成JWT失败
-    FailedToProduceJWT(JWTPkgError),
-    /// JWT格式错误
-    JWTFormatError(jwt::JWTErrorCase),
+    DatabaseOptFailed(DbErr),
     /// JWT鉴权失败
-    JWTVerificationFailed(JWTPkgError),
+    JWTError(jwt::JWTErrorCase),
     /// 操作权限不足
     PermissionDenied,
     /// 登陆错误
@@ -39,38 +30,16 @@ pub enum Error {
 impl From<Error> for ResJson<()> {
     fn from(e: Error) -> Self {
         // TODO: 之后把错误输出搬到这里
+        debug(&e);
         ResJson {
             error_flag: true,
             error_code: match e {
-                Error::ServerError(e) => {
-                    eprintln!("服务器错误：{:?}", e);
-                    0
-                }
-                Error::DatabaseOptFailed(e) => {
-                    eprintln!("数据库操作错误：{:?}", e);
-                    1
-                }
-                Error::FailedToProduceJWT(e) => {
-                    eprintln!("生成JWT失败{:?}", e);
-                    2
-                }
-                Error::JWTFormatError(e) => {
-                    eprintln!("JWT格式错误{:?}", e);
-                    3
-                }
-                Error::JWTVerificationFailed(e) => {
-                    eprintln!("JWT验证失败{:?}", e);
-                    4
-                }
-                Error::PermissionDenied => 5,
-                Error::LoginError(e) => {
-                    eprintln!("登陆失败：{:?}", e);
-                    6
-                }
-                Error::InvalidLocale => {
-                    eprintln!("非法地区字串");
-                    7
-                }
+                Error::ServerError(_) => 0,
+                Error::DatabaseOptFailed(_) => 1,
+                Error::JWTError(_) => 2,
+                Error::PermissionDenied => 3,
+                Error::LoginError(_) => 4,
+                Error::InvalidLocale => 5,
             } * 100
                 + 1,
             data: None,
@@ -99,105 +68,4 @@ impl From<i32> for Role {
             _ => Role::User,
         }
     }
-}
-
-/// 用户的基本注册信息，用于生成jwt令牌
-#[derive(Debug, Deserialize, Serialize, Clone)]
-struct UserData {
-    /// 用户名
-    username: String,
-    /// 密码
-    password: String,
-    /// 偏好时区
-    timezone: String,
-    /// 角色
-    role: Role,
-    /// 偏好语言
-    locale: Language,
-    /// 通用字段
-    inner: crate::UniversalField,
-}
-
-impl UserData {
-    /// 仅用于注册后进行插入数据库
-    fn from_register(data: register::Register, builder: u64) -> Result<Self> {
-        let inner = crate::UniversalField {
-            id: 0,
-            version: 1,
-            create_by: Some(builder),
-            create_time: Some(Utc::now()),
-            update_by: Some(builder),
-            update_time: Some(Utc::now()),
-            del_flag: false,
-        };
-
-        let locale = match Language::from_locale(data.locale.as_str()) {
-            Some(locale) => locale,
-            None => return Err(Error::InvalidLocale),
-        };
-
-        let password = bcrypt::hash(data.password.as_str(), bcrypt::DEFAULT_COST)
-            .map_err(|_| Error::ServerError(crate::Error::ServerLogicError))?;
-
-        Ok(Self {
-            username: data.username,
-            password,
-            timezone: data.timezone,
-            role: data.role.into(),
-            locale,
-            inner,
-        })
-    }
-}
-
-impl IntoIterator for UserData {
-    type Item = Option<String>;
-    type IntoIter = std::vec::IntoIter<Self::Item>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        let user = vec![
-            Some(self.username),
-            Some(self.password),
-            Some((self.role as i32).to_string()),
-            Some(self.timezone),
-            Some(self.locale.to_string()),
-        ];
-        // REVIEW: 这看起来有一些损耗，对...对吗？
-        self.inner
-            .into_iter()
-            .chain(user.into_iter())
-            .collect::<Vec<Option<String>>>()
-            .into_iter()
-    }
-}
-
-impl<'a> ToSql for UserData {
-    fn to_sql(
-        &self,
-        ty: &Type,
-        out: &mut bytes::BytesMut,
-    ) -> Result<IsNull, Box<dyn Error + Sync + Send>>
-    where
-        Self: Sized,
-    {
-        let mut map = std::collections::HashMap::new();
-        map.insert("username", &self.username as &dyn ToSql);
-        map.insert("password", &self.password as &dyn ToSql);
-        map.insert("timezone", &self.timezone as &dyn ToSql);
-        map.insert("role", &self.role as &dyn ToSql);
-        map.insert("locale", &self.locale as &dyn ToSql);
-        // 对于复杂的类型，如 inner，可能需要特殊处理
-        // map.insert("inner", &self.inner as &dyn ToSql);
-
-        // 使用 postgres 的 JSON 支持将 map 转换为 JSON 字符串，并写入 out
-        let json = serde_json::to_string(&map)?;
-        out.extend_from_slice(json.as_bytes());
-        Ok(IsNull::No)
-    }
-
-    fn accepts(ty: &Type) -> bool {
-        *ty == Type::JSON || *ty == Type::JSONB
-    }
-
-    to_sql_checked!();
 }

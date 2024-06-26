@@ -5,6 +5,7 @@ use chrono::Utc;
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 
+// TODO: 之后从env里面读
 pub(super) const SECRET: &[u8] = "固定的secret".as_bytes();
 
 /// JWT操作中更加具体的错误细节
@@ -17,6 +18,16 @@ pub enum JWTErrorCase {
     MayEmpty,
     /// 字串格式非法
     InvalidFormat,
+    /// 认证失败
+    VerificationFailed(jsonwebtoken::errors::Error),
+    /// 生成失败
+    ProduceFailed(jsonwebtoken::errors::Error),
+}
+
+impl From<JWTErrorCase> for Error {
+    fn from(value: JWTErrorCase) -> Self {
+        Error::JWTError(value)
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -68,18 +79,18 @@ pub async fn mw_verify_jwt(
 }
 
 /// JWT的具体鉴权操作
-async fn verify_jwt(jwt: Option<&header::HeaderValue>) -> super::Result<super::Role> {
+async fn verify_jwt(jwt: Option<&header::HeaderValue>) -> super::Result<(i32, super::Role)> {
     let claims = jsonwebtoken::decode::<Claims>(
-        jwt.ok_or(super::Error::JWTFormatError(JWTErrorCase::MayEmpty))?
+        jwt.ok_or(JWTErrorCase::MayEmpty)?
             .to_str()
-            .map_err(|_| super::Error::JWTFormatError(JWTErrorCase::MayNotString))?
+            .map_err(|_| JWTErrorCase::MayNotString)?
             .strip_prefix("Bearer ")
-            .ok_or(super::Error::JWTFormatError(JWTErrorCase::InvalidFormat))?,
+            .ok_or(JWTErrorCase::InvalidFormat)?,
         &DecodingKey::from_secret(SECRET),
         &Validation::new(Algorithm::HS256),
     )
-    .map_err(|e| super::Error::JWTVerificationFailed(e))?;
-    Ok(claims.claims.role)
+    .map_err(|e| JWTErrorCase::VerificationFailed(e))?;
+    Ok((claims.claims.sub, claims.claims.role))
 }
 
 /// 生成jwt令牌，返回两个令牌，第一个是普通令牌，第二个是刷新令牌。
@@ -87,22 +98,19 @@ async fn verify_jwt(jwt: Option<&header::HeaderValue>) -> super::Result<super::R
 /// REVIEW: 我们需要可变的有效期吗？
 pub fn get_jwt(id: i32, role: super::Role) -> Result<(String, String)> {
     let mut claims = Claims::new(id, role);
-
-    // TODO: 之后从env里面读
-
     let token = jsonwebtoken::encode(
         &Header::default(),
         &claims,
         &EncodingKey::from_secret(SECRET),
     )
-    .map_err(|e| Error::FailedToProduceJWT(e))?;
+    .map_err(|e| JWTErrorCase::ProduceFailed(e))?;
 
     let refresh_token = jsonwebtoken::encode(
         &Header::default(),
         &claims.get_refresh_token(),
         &EncodingKey::from_secret(SECRET),
     )
-    .map_err(|e| Error::FailedToProduceJWT(e))?;
+    .map_err(|e| JWTErrorCase::ProduceFailed(e))?;
     Ok((token, refresh_token))
 }
 
@@ -121,7 +129,7 @@ fn test_encode_decode_jwt() {
         &DecodingKey::from_secret(SECRET),
         &Validation::new(Algorithm::HS256),
     )
-    .map_err(|e| super::Error::JWTVerificationFailed(e))
+    .map_err(|e| JWTErrorCase::VerificationFailed(e))
     .unwrap();
 
     // Verify the decoded claims

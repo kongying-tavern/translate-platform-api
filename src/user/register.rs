@@ -1,6 +1,8 @@
-use super::{Error, Result, UserData};
+use super::{Error, Result};
+use crate::entity::sys_user;
 use actix_web::{web, HttpMessage, HttpResponse};
-// use deadpool_postgres::GenericClient;
+use chrono::Utc;
+use sea_orm::{ActiveModelTrait, ActiveValue, DbConn};
 
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct Register {
@@ -11,10 +13,32 @@ pub struct Register {
     pub locale: String,
 }
 
+impl Register {
+    fn into_sys_user(&self, creator_id: i32) -> Result<sys_user::ActiveModel> {
+        // 检查地区是否合法
+        isolang::Language::from_locale(&self.locale).ok_or(Error::InvalidLocale)?;
+
+        Ok(sys_user::ActiveModel {
+            version: ActiveValue::Set(1),
+            creator_id: ActiveValue::Set(creator_id as i64),
+            create_time: ActiveValue::Set(Some(Utc::now().naive_utc())),
+            updater_id: ActiveValue::Set(creator_id as i64),
+            update_time: ActiveValue::Set(Some(Utc::now().naive_utc())),
+            del_flag: ActiveValue::Set(false),
+            id: ActiveValue::NotSet,
+            username: ActiveValue::Set(self.username.clone()),
+            password: ActiveValue::Set(bcrypt::hash(&self.password, bcrypt::DEFAULT_COST).unwrap()),
+            role: ActiveValue::Set(self.role),
+            timezone: ActiveValue::Set(self.timezone.clone()),
+            locale: ActiveValue::Set(self.locale.clone()),
+        })
+    }
+}
+
 /// 新用户注册的请求处理函数，具体的操作在`register`函数中
 #[actix_web::post("/register")]
 pub async fn sv_register(
-    db_pool: web::Data<deadpool_postgres::Pool>,
+    db_pool: web::Data<[DbConn; 1]>,
     req: actix_web::HttpRequest,
     req_body: web::Json<Register>,
 ) -> impl actix_web::Responder {
@@ -25,41 +49,23 @@ pub async fn sv_register(
 }
 
 async fn register(
-    db_pool: web::Data<deadpool_postgres::Pool>,
+    db: web::Data<[DbConn; 1]>,
     req: actix_web::HttpRequest,
     req_body: web::Json<Register>,
 ) -> Result<()> {
     // 验证管理员权限
-    match req
+    let id = match req
         .extensions()
-        .get::<super::Role>()
+        .get::<(i32, super::Role)>()
         .ok_or(Error::ServerError(crate::Error::ServerLogicError))?
     {
-        super::Role::Administrator => (),
+        (id, super::Role::Administrator) => *id,
         _ => return Err(Error::PermissionDenied),
     };
 
-    let client = db_pool
-        .get()
-        .await
-        .map_err(|_| Error::ServerError(crate::Error::DatabaseConnectionFailed))?;
-
-    let statement = client
-        .prepare(
-            "INSERT INTO public.sys_user
-                    (\"version\", creator_id, create_time, 
-                    updater_id, update_time, del_flag, 
-                    username, \"password\", \"role\", 
-                    timezone, locale)
-                    VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);",
-        )
-        .await
-        .map_err(|e| Error::DatabaseOptFailed(e))?;
-
-    let user_data = UserData::from_register(req_body.into_inner(), 0)?;
-
-    client
-        .execute(&statement, user_data.into_iter())
+    req_body
+        .into_sys_user(id)?
+        .insert(&db[0])
         .await
         .map_err(|e| Error::DatabaseOptFailed(e))?;
 
@@ -67,8 +73,8 @@ async fn register(
 }
 
 #[test]
-fn test_b() {
+fn test_bcrypt() {
     let hash = bcrypt::hash("password", bcrypt::DEFAULT_COST).unwrap();
-    println!("明文：password，密文：{}", hash);
+    println!("明文: password, 密文: {}", hash);
     assert!(bcrypt::verify("password", &hash).unwrap());
 }
