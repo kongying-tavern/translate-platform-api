@@ -22,3 +22,6 @@
 *.d
 
 /database/pdmaner/.back_*/*.pdma.json
+
+/firedbg
+firedbg.toml
