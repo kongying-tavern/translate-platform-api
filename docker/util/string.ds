@@ -1,0 +1,15 @@
+fn str_repeat
+    i = set 0
+    s = set ""
+    while less_than ${i} ${2}
+        s = concat ${s} ${1}
+        i = calc ${i} + 1
+    end
+    return ${s}
+end
+
+fn echo_label
+    if not is_empty "${1}"
+        echo "${1}${2}"
+    end
+end

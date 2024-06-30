@@ -22,3 +22,8 @@
 *.d
 
 /database/pdmaner/.back_*/*.pdma.json
+
+# Environment files
+.env.*
+.env
+!.env.example
