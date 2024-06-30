@@ -23,5 +23,7 @@
 
 /database/pdmaner/.back_*/*.pdma.json
 
-/firedbg
-firedbg.toml
+# Environment files
+.env.*
+.env
+!.env.example
