@@ -1,0 +1,11 @@
+fn get_env_map
+    scope_push_stack
+
+    env_file_path = get_env "ENV_FILE"
+    env_content = readfile "${env_file_path}"
+    env_map = map
+    map_load_properties ${env_map} "${env_content}"
+
+    scope_pop_stack --copy "env_map"
+    return ${env_map}
+end

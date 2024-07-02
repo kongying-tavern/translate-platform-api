@@ -1,0 +1,17 @@
+fn replace_env_vals
+    text = set ${1}
+    vars = set ${2}
+    scope_push_stack --copy "text" "vars"
+
+    # Replace values
+    var_keys = map_keys ${vars}
+    for var_key in ${var_keys}
+        var_slot = concat "{{" ${var_key} "}}"
+        var_value = map_get ${vars} ${var_key}
+        text = replace ${text} ${var_slot} ${var_value}
+    end
+
+    release ${var_keys}
+    scope_pop_stack --copy "text"
+    return ${text}
+end

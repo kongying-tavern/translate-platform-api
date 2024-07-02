@@ -1,0 +1,9 @@
+fn print_banner
+    banner_file_path = set ${1}
+    scope_push_stack --copy "banner_file_path"
+
+    banner_content = readfile ${banner_file_path}
+    echo ${banner_content}
+
+    scope_pop_stack
+end

@@ -1,0 +1,10 @@
+fn print_env_path
+    label = set ${1}
+    scope_push_stack --copy "label"
+
+    echo_label ${label} ":"
+    env_file = get_env "ENV_FILE"
+    println -c magenta "  ${env_file}"
+
+    scope_pop_stack
+end

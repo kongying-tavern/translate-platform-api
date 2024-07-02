@@ -1,0 +1,42 @@
+fn prepare_env_vars
+    scope_push_stack
+
+    # Initialize `ENV_FILE`
+    cur_dir = pwd
+    env_file = get_env "ENV_FILE"
+    env_file = set ${env_file} or ".env"
+    env_file = join_path ${cur_dir} ${env_file}
+    set_env "ENV_FILE" ${env_file}
+
+    # Get env vars
+    env_vars = get_env_var_map
+    ev.data_dir = map_get ${env_vars} "DATA_DIR"
+    ev.project_name = map_get ${env_vars} "PROJECT_NAME"
+
+    # Get env map
+    env_map = get_env_map
+    em.data_dir = map_get ${env_map} "DATA_DIR"
+    em.project_name = map_get ${env_map} "PROJECT_NAME"
+
+    # Resolve `PROJECT_NAME`
+    project_name = set ${em.project_name} or ${ev.project_name}
+    if is_empty ${project_name} and is_file "./makefile/project_name.txt"
+        project_name_default = readfile "./makefile/project_name.txt"
+        project_name_default = trim ${project_name_default}
+        project_name = set ${project_name} or ${project_name_default}
+    end
+    if is_empty ${project_name}
+        log_error "`PROJECT_NAME` is neither in env vars, env file nor makefile file"
+    end
+
+    # Resolve `DATA_DIR`
+    data_dir = set ${em.data_dir} or ${ev.data_dir} or "./.data"
+
+    # Update env vars
+    set_env "PROJECT_NAME" ${project_name}
+    set_env "DATA_DIR" ${data_dir}
+
+    release ${env_vars}
+    release ${env_map}
+    scope_pop_stack
+end

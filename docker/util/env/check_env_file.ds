@@ -1,0 +1,13 @@
+fn check_env_file
+    scope_push_stack
+
+    # Check `.env` file
+    env_file_path = get_env "ENV_FILE"
+    env_file_exist = is_file ${env_file_path}
+    env_file_name = basename ${env_file_path}
+    if not ${env_file_exist}
+        log_error "env file does not exist. Please make `${env_file_name}` first."
+    end
+
+    scope_pop_stack
+end

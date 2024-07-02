@@ -10,19 +10,18 @@ script = '''
 [tasks.help]
 script = '''
 #!@duckscript
-!include_files ./util/env.ds
-!include_files ./util/help.ds
+!include_files ./util/index.ds
 
 # Get env
 prepare_env_vars
-check_env
+check_env_file
 
 # Print help
 print_banner ./makefile/banner.txt
 print_env_path "Current env file"
-cmds = get_help_commands "?" ">"
-print_help_commands ${cmds} 30 "Available commands"
-get_command_input "What do you want?"
+cmds = get_help_cmds "?" ">"
+print_help_cmds ${cmds} 30 "Available commands"
+get_cmd_input "What do you want?"
 
 release ${cmds}
 '''

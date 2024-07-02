@@ -1,0 +1,81 @@
+fn get_help_cmds
+    tag = set ${1}
+    tag_imod = set ${2}
+    scope_push_stack --copy "tag" "tag_imod"
+
+    cmds = array
+    makefile = readfile "./Makefile.toml"
+    lines = split ${makefile} "\n"
+    tag_len = length ${tag}
+    tag_mod = set "${tag}${tag_imod}"
+    tag_mod_len = length ${tag_mod}
+    task_tag_start = set "[tasks."
+    task_tag_start_len = length ${task_tag_start}
+    task_tag_end = set "]"
+    task_tag_end_len = length ${task_tag_end}
+    none = noop
+
+    for line in ${lines}
+        exist_task = starts_with ${line} ${task_tag_start}
+        if not ${exist_task}
+            goto :eoloop
+        end
+
+        # Get command name
+        name_start = indexof ${line} ${task_tag_start}
+        if eq ${name_start} ${none}
+            goto :eoloop
+        end
+        name_start = calc ${name_start} + ${task_tag_start_len}
+        name_end = indexof ${line} ${task_tag_end}
+        cmd_name = substring ${line} ${name_start} ${name_end}
+
+        # Get command comment
+        comment_start = indexof ${line} "#"
+        if eq ${comment_start} ${none}
+            goto :eoloop
+        end
+        cmd_comment = substring ${line} ${comment_start}
+        cmd_comment = trim ${cmd_comment}
+        if not is_empty ${cmd_comment}
+            cmd_comment = substring ${cmd_comment} 1
+            cmd_comment = trim ${cmd_comment}
+        end
+        if is_empty ${cmd_comment}
+            goto :eoloop
+        end
+
+        # Extract fields
+        exist_command = set false
+        if starts_with ${cmd_comment} ${tag_mod}
+            exist_command = set true
+            cmd_color = set "green"
+            cmd_indent = str_repeat " " 2
+            cmd_desc = substring ${cmd_comment} ${tag_mod_len}
+            cmd_desc = trim ${cmd_desc}
+        elseif starts_with ${cmd_comment} ${tag}
+            exist_command = set true
+            cmd_color = set "blue"
+            cmd_indent = str_repeat " " 0
+            cmd_desc = substring ${cmd_comment} ${tag_len}
+            cmd_desc = trim ${cmd_desc}
+        end
+        if not ${exist_command}
+            goto :eoloop
+        end
+
+        # Prepare entity map
+        cmd_map = map
+        map_put ${cmd_map} color ${cmd_color}
+        map_put ${cmd_map} indent ${cmd_indent}
+        map_put ${cmd_map} name ${cmd_name}
+        map_put ${cmd_map} desc ${cmd_desc}
+
+        array_push ${cmds} ${cmd_map}
+        :eoloop
+    end
+
+    release ${lines}
+    scope_pop_stack --copy "cmds"
+    return ${cmds}
+end

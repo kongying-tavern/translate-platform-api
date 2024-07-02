@@ -1,0 +1,10 @@
+fn get_cmd_input
+    label = set ${1}
+    scope_push_stack --copy "label"
+
+    echo_label ${label} " >>>"
+    cmd_name = read
+    exec cargo make ${cmd_name}
+
+    scope_pop_stack
+end

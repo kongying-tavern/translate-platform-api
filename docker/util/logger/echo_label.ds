@@ -1,0 +1,11 @@
+fn echo_label
+    label = set ${1}
+    appendix = set ${2}
+    scope_push_stack --copy "label" "appendix"
+
+    if not is_empty "${label}"
+        echo "${label}${appendix}"
+    end
+
+    scope_pop_stack
+end

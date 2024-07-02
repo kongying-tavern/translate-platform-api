@@ -1,0 +1,15 @@
+fn str_repeat
+    repeat_char = set ${1}
+    repeat_count = set ${2}
+    scope_push_stack --copy "repeat_char" "repeat_count"
+
+    count = set 0
+    text = set ""
+    while less_than ${count} ${repeat_count}
+        text = concat ${text} ${repeat_char}
+        count = calc ${count} + 1
+    end
+
+    scope_pop_stack --copy "text"
+    return ${text}
+end

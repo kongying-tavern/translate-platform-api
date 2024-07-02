@@ -1,0 +1,12 @@
+fn replace_env_values_in_file
+    vars = set ${1}
+    src_file_path = set ${2}
+    tar_file_path = set ${3}
+    scope_push_stack --copy "vars" "src_file_path" "tar_file_path"
+
+    src_content = readfile ${src_file_path}
+    tar_content = replace_env_vals ${src_content} ${vars}
+    writefile ${tar_file_path} ${tar_content}
+
+    scope_pop_stack
+end
