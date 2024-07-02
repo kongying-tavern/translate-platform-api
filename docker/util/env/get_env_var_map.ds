@@ -1,0 +1,19 @@
+fn get_env_var_map
+    scope_push_stack
+
+    # Get raw env var map
+    env_vars_raw = env_to_map
+    env_file = map_get ${env_vars_raw} "ENV_FILE"
+    data_dir = map_get ${env_vars_raw} "DATA_DIR"
+    project_name = map_get ${env_vars_raw} "PROJECT_NAME"
+
+    # Rebuild env var map
+    env_vars = map
+    map_put ${env_vars} "ENV_FILE" ${env_file}
+    map_put ${env_vars} "DATA_DIR" ${data_dir}
+    map_put ${env_vars} "PROJECT_NAME" ${project_name}
+
+    release ${env_vars_raw}
+    scope_pop_stack --copy "env_vars"
+    return ${env_vars}
+end

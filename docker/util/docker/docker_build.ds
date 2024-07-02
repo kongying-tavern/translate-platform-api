@@ -1,0 +1,10 @@
+fn docker_build
+    env_file = set ${1}
+    project_name = set ${2}
+    compose_file = set ${3}
+    scope_push_stack --copy "env_file" "project_name" "compose_file"
+
+    exec docker compose --env-file "${env_file}" -p "${project_name}" -f "${compose_file}" build
+
+    scope_pop_stack
+end

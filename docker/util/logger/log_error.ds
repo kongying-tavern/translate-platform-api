@@ -1,0 +1,10 @@
+fn log_error
+    error_msg = set ${1}
+    scope_push_stack --copy "error_msg"
+
+    exit_on_error true
+    println -c red ${error_msg}
+    trigger_error
+
+    scope_pop_stack
+end
