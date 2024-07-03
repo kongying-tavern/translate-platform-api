@@ -11,8 +11,8 @@ extract_env_vars
 check_env_file
 
 docker_build "${ENV_FILE}" "${PROJECT_NAME}" "./composer/dataenv.build.yml"
-# docker_down "${ENV_FILE}" "${PROJECT_NAME}" "./composer/dataenv.yml"
-# docker_up "${ENV_FILE}" "${PROJECT_NAME}" "./composer/dataenv.yml"
+docker_down "${ENV_FILE}" "${PROJECT_NAME}" "./composer/dataenv.yml"
+docker_up "${ENV_FILE}" "${PROJECT_NAME}" "./composer/dataenv.yml"
 '''
 
 # help
