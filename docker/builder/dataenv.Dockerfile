@@ -1,3 +1,4 @@
+# Build SQL
 FROM node:lts AS builder
 
 WORKDIR /data
@@ -10,4 +11,6 @@ RUN corepack enable && \
     pnpm i && \
     pnpm build -s ./data.pdma.json -t ./database.sql
 
-ENTRYPOINT ["tail", "-f", "/dev/null"]
+# Create Runner
+FROM postgres:15 AS runner
+COPY --from=builder /data/database.sql /docker-entrypoint-initdb.d/initialize-db.sql

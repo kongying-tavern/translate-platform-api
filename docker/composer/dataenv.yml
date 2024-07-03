@@ -5,7 +5,7 @@ services:
   postgresql:
     container_name: gstrans-postgres
     hostname: gstrans-postgres
-    image: postgres:15
+    image: gstrans/postgres
     networks:
       - gstrans-api
     environment:
