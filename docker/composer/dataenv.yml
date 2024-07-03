@@ -1,0 +1,25 @@
+include:
+  - _network.yml
+
+services:
+  postgresql:
+    container_name: gstrans-postgres
+    hostname: gstrans-postgres
+    image: postgres:15
+    networks:
+      - gstrans-api
+    environment:
+      POSTGRES_USER: ${PGSQL_USER}
+      POSTGRES_PASSWORD: ${PGSQL_PASS}
+      POSTGRES_DB: ${PGSQL_DB}
+    volumes:
+      - ${DATA_DIR}/postgresql:/var/lib/postgresql/data
+    ports:
+      - ${PGSQL_PORT:-5432}:5432
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h localhost -p 5432 -U \"${PGSQL_USER}\" | grep accept || exit 1"]
+      interval: 30s
+      timeout: 30s
+      retries: 3
+      start_period: 2m

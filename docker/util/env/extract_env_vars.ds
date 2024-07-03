@@ -1,0 +1,9 @@
+fn extract_env_vars
+    scope_push_stack
+
+    ENV_FILE = get_env "ENV_FILE"
+    DATA_DIR = get_env "DATA_DIR"
+    PROJECT_NAME = get_env "PROJECT_NAME"
+
+    scope_pop_stack --copy "ENV_FILE" "DATA_DIR" "PROJECT_NAME"
+end
