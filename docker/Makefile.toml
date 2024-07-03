@@ -4,6 +4,14 @@ alias = "help"
 [tasks.dataenv] # ? Data environment
 script = '''
 #!@duckscript
+!include_files ./util/index.ds
+prepare_env_vars
+a = get_env "ENV_FILE"
+extract_env_vars
+check_env_file
+
+docker_down "${ENV_FILE}" "${PROJECT_NAME}" "./composer/dataenv.yml"
+docker_up "${ENV_FILE}" "${PROJECT_NAME}" "./composer/dataenv.yml"
 '''
 
 # help
@@ -11,8 +19,6 @@ script = '''
 script = '''
 #!@duckscript
 !include_files ./util/index.ds
-
-# Get env
 prepare_env_vars
 check_env_file
 
