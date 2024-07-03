@@ -29,17 +29,21 @@ fn prepare_env_vars
         log_error "`PROJECT_NAME` is neither in env vars, env file nor makefile file"
     end
 
+    # Resolve `PROJECT_BASE`
+    project_base = join_path ${cur_dir} "../"
+
     # Resolve `DATA_DIR`
     data_dir = set ${em.data_dir} or ${ev.data_dir} or "./.data"
     data_dir_root_win = contains ${data_dir} ":"
     data_dir_root_unix_like = starts_with ${data_dir} "/"
     if not ( ${data_dir_root_win} or ${data_dir_root_unix_like} )
-        data_dir = join_path ${cur_dir} "../" ${data_dir}
+        data_dir = join_path ${project_base} ${data_dir}
     end
 
     # Update env vars
-    set_env "PROJECT_NAME" ${project_name}
     set_env "DATA_DIR" ${data_dir}
+    set_env "PROJECT_NAME" ${project_name}
+    set_env "PROJECT_BASE" ${project_base}
 
     release ${env_vars}
     release ${env_map}
