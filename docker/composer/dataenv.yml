@@ -2,10 +2,17 @@ include:
   - _network.yml
 
 services:
+  postgresql-alx:
+    image: gstrans/postgres-alx
+    container_name: gstrans-postgres-alx
+    environment:
+      POSTGRES_RESET_DB: ${PGSQL_RESET_DB:-0}
+    volumes:
+      - ${DATA_DIR}/postgresql:/data/database
   postgresql:
+    image: gstrans/postgres
     container_name: gstrans-postgres
     hostname: gstrans-postgres
-    image: gstrans/postgres
     networks:
       - gstrans-api
     environment:
@@ -17,6 +24,9 @@ services:
     ports:
       - ${PGSQL_PORT:-5432}:5432
     restart: always
+    depends_on:
+      postgresql-alx:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -h localhost -p 5432 -U \"${PGSQL_USER}\" | grep accept || exit 1"]
       interval: 30s

@@ -1,6 +1,11 @@
 services:
-  builder:
+  postgresql.bdr:
     image: gstrans/postgres
     build:
       context: ${PROJECT_BASE}
       dockerfile: docker/builder/dataenv.Dockerfile
+  postgresql-alx.bdr:
+    image: gstrans/postgres-alx
+    build:
+      context: ${PROJECT_BASE}
+      dockerfile: docker/builder/dataenv.alx.Dockerfile
