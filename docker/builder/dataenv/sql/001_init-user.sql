@@ -1,9 +1,9 @@
 -- 新增用户
 INSERT INTO "sys_user" (
     "version",
-    "create_by",
+    "creator_id",
     "create_time",
-    "update_by",
+    "updater_id",
     "update_time",
     "del_flag",
     "username",
