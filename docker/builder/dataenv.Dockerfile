@@ -2,7 +2,7 @@
 FROM node:lts AS builder
 
 WORKDIR /data
-ADD docker/builder/dataenv .
+ADD docker/builder/dataenv/builder .
 COPY database/pdmaner/空荧翻译平台.pdma.json data.pdma.json
 
 RUN corepack enable && \
@@ -13,4 +13,7 @@ RUN corepack enable && \
 
 # Create Runner
 FROM postgres:15 AS runner
-COPY --from=builder /data/database.sql /docker-entrypoint-initdb.d/initialize-db.sql
+
+WORKDIR /docker-entrypoint-initdb.d
+COPY --from=builder /data/database.sql 000_init-db.sql
+ADD docker/builder/dataenv/sql .
