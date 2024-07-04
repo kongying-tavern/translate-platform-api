@@ -1,0 +1,9 @@
+pub mod auth;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod document;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod email;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod image;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod log;

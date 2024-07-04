@@ -1,0 +1,45 @@
+volumes:
+  db:
+  images:
+  documents:
+  log:
+
+services:
+  db:
+    image: mariadb:lts
+    ports:
+      - 3306:3306
+    restart: unless-stopped
+    volumes:
+      - db:/var/lib/mysql
+    environment:
+      - MARIADB_USER=kongying
+      - MARIADB_PASSWORD=HoM0iI45l4L9198iO
+      - MARIADB_DATABASE=kongying
+      - MARIADB_RANDOM_ROOT_PASSWORD=yes
+    networks:
+      - backend
+  service:
+    image: kongying-tavern-boot:latest
+    # image: registry.cn-shanghai.aliyuncs.com/langyo/kongying-tavern-boot:latest
+    ports:
+      - 80:80
+      # - 8080:80
+    restart: unless-stopped
+    volumes:
+      - images:/home/res/images
+      - documents:/home/res/documents
+      - log:/home/res/log
+    environment:
+      - DATABASE_URL=mysql://kongying:HoM0iI45l4L9198iO@db:3306/kongying
+      - JWT_SECRET=kongying:HoM0iI45l4L9198iO@kongying-tavern
+    links:
+      - db
+    depends_on:
+      - db
+    networks:
+      - backend
+
+networks:
+  backend:
+    driver: bridge
