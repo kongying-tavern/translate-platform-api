@@ -1,0 +1,46 @@
+fn print_help_cmds
+    cmds = set ${1}
+    cmd_width = set ${2}
+    label = set ${3}
+    scope_push_stack --copy "cmds" "cmd_width" "label"
+
+    echo_label ${label} ":"
+
+    # Get longest name length
+    gap_threshold = set ${cmd_width}
+    for cmd in ${cmds}
+        cmd_name = map_get ${cmd} name
+        cmd_len = length ${cmd_name}
+        cmd_len = calc ${cmd_len} + 2
+        if greater_than ${cmd_len} ${gap_threshold}
+            gap_threshold = set ${cmd_len}
+        end
+    end
+
+    # Print commands
+    for cmd in ${cmds}
+        cmd_color = map_get ${cmd} color
+        cmd_indent = map_get ${cmd} indent
+        cmd_name = map_get ${cmd} name
+        cmd_desc = map_get ${cmd} desc
+
+        # Get command gap
+        name_len = length ${cmd_name}
+        indent_len = length ${cmd_indent}
+        gap_len = calc ${gap_threshold} - ${name_len} - ${indent_len}
+        cmd_gap = str_repeat " " ${gap_len}
+
+        # Print help command
+        print ${cmd_indent}
+        print "  - "
+        print -c ${cmd_color} ${cmd_name}
+        print ${cmd_gap}
+        print " "
+        print ${cmd_desc}
+        echo
+
+        release ${cmd}
+    end
+
+    scope_pop_stack
+end
