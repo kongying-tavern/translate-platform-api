@@ -1,42 +1,54 @@
 use actix_web::{
-    get,
     web::{self, Data},
     App, HttpServer, Responder,
 };
-use deadpool_postgres::{Manager, Pool};
-use serde::Serialize;
-use tokio_postgres::{Config, NoTls};
+use actix_web_lab::middleware;
+use chrono::{DateTime, Duration, Utc};
+use migration::{Migrator, MigratorTrait};
+use sea_orm::SqlxPostgresConnector;
+use serde::{Deserialize, Serialize};
+use sqlx::postgres::PgPoolOptions;
+use user::{jwt, login, register};
 
-mod creat_table;
+mod entity;
 mod user;
-
-#[get("/ping")]
-async fn ping() -> impl Responder {
-    "pong!"
-}
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    // 数据库配置
-    let db_manager = Manager::new(
-        Config::new()
-            .host("localhost")
-            .user("postgres")
-            .password("dev_password")
-            .to_owned(),
-        NoTls,
-    );
-    // TODO: 这里的池大小最好也从配置文件中读取
-    let pool = Pool::builder(db_manager).max_size(16).build().unwrap();
+    // 数据库初始化
+    // TODO: 之后需要从args中导出
+    let config = PgPoolOptions::new()
+        .max_connections(128)
+        .min_connections(16)
+        .acquire_timeout(Duration::seconds(8).to_std().unwrap())
+        .idle_timeout(Duration::seconds(8).to_std().unwrap())
+        .max_lifetime(Duration::seconds(8).to_std().unwrap());
 
-    creat_table::create_user_table(&pool.get().await.unwrap())
+    let pool = config
+        .connect("postgres://postgres:dev_password@localhost:5432")
         .await
         .unwrap();
 
+    let db = SqlxPostgresConnector::from_sqlx_postgres_pool(pool.clone());
+
+    // 创建表
+    Migrator::up(&db, None).await.unwrap();
+
+    // log初始化
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::DEBUG)
+        .with_test_writer()
+        .init();
+
     HttpServer::new(move || {
         App::new()
-            .app_data(Data::new(pool.clone()))
-            .service(web::scope("/user").service(user::register))
+            .app_data(Data::new([db.clone()])) // 这里必须要用一个类型包起来，不然传参会报错，所以用数组吧
+            .service(
+                web::scope("/user")
+                    .wrap(middleware::from_fn(jwt::mw_verify_jwt))
+                    .service(register::sv_register),
+            )
+            .service(login::sv_login)
             .service(ping)
     })
     .bind(("127.0.0.1", 8080))?
@@ -44,17 +56,21 @@ async fn main() -> std::io::Result<()> {
     .await
 }
 
+#[actix_web::get("/ping")]
+async fn ping() -> impl Responder {
+    "pong!"
+}
+
 /// 所有响应的返回格式
-/// REVIEW: 大家看看这样写成不？
-/// 计划error_code使用树形编码，一个十位数，0-255，最低两位（都是十位数）是业务类型，在两位要么是子分类或者是具体错误
+/// 计划error_code使用树形编码，一个十进制数，最低两位是业务分类，往前两位要么是子分类要么是具体错误类型
 /// * 00: 成功，其他位也是0
 /// * 01: user相关操作错误
 /// 具体错误类型见ERRORLIST.md(还没写)
-/// REVIEW: 要不要换个名字？
+/// 其中只有含有低两位的错误为服务器错误，这种情况下，程序理论上应该抛出panic的地方但为了让前端知晓所以还是返回了
 #[derive(Serialize)]
 struct ResJson<T> {
     error_flag: bool,
-    error_code: u8,
+    error_code: u16,
     data: Option<T>,
 }
 
@@ -68,30 +84,12 @@ impl<T: Serialize> ResJson<T> {
     }
 }
 
-#[actix_web::test]
-/// 测试正常访问postgres
-async fn test_tokio_postgres() {
-    use actix_web::rt;
-    use tokio_postgres::NoTls;
-    // TODO：之后将密码设置为读取内置文件填写，开发阶段就先这样吧
-    let (client, connection) =
-        tokio_postgres::connect("host=localhost user=postgres password=dev_password", NoTls)
-            .await
-            .unwrap();
-
-    rt::spawn(async move {
-        if let Err(e) = connection.await {
-            eprintln!("connection error: {}", e);
-        }
-    });
-
-    // Now we can execute a simple statement that just returns its parameter.
-    let rows = client
-        .query("SELECT $1::TEXT", &[&"hello world"])
-        .await
-        .unwrap();
-
-    // And then check that we got back the same string we sent over.
-    let value: &str = rows[0].get(0);
-    assert_eq!(value, "hello world");
+/// 服务器错误
+/// 一些应该panic的地方为了能让前端知道，就用这个
+#[derive(Debug)]
+enum Error {
+    /// 服务器逻辑错误
+    ServerLogicError,
+    /// 数据库连接失败
+    DatabaseConnectionFailed,
 }
