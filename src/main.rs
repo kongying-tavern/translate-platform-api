@@ -1,11 +1,17 @@
-use translate_platform_api::{run, get_version, get_app_name};
+use tracing_subscriber::util::SubscriberInitExt;
+use translate_platform_api::run;
 
-fn main() {
-    println!("启动 {} v{}", get_app_name(), get_version());
-    println!("正在从main.rs调用库函数...");
-    
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .with_max_level(tracing::Level::INFO)
+        .finish()
+        .init();
+
     // 调用库中的run函数
-    run();
-    
-    println!("应用程序启动完成！");
+    run().await?;
+
+    println!("Goodbye!");
+    Ok(())
 }
