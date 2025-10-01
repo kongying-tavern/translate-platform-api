@@ -1,0 +1,112 @@
+[config]
+default_to_workspace = false
+
+# 禁用内置的 init 任务
+[tasks.init]
+disabled = true
+
+[env]
+# 数据库
+POSTGRES_DB = { source = "${POSTGRES_DB}", default_value = "translate_platform" }
+POSTGRES_USER = { source = "${POSTGRES_USER}", default_value = "dev" }
+POSTGRES_PASSWORD = { source = "${POSTGRES_PASSWORD}", default_value = "dev" }
+POSTGRES_HOST = { source = "${POSTGRES_HOST}", default_value = "localhost" }
+POSTGRES_PORT = { source = "${POSTGRES_PORT}", default_value = "5432" }
+POSTGRES_CONTAINER_NAME = { source = "${POSTGRES_CONTAINER_NAME}", default_value = "translate-platform-db" }
+
+# 应用配置
+APP_PORT = { source = "${APP_PORT}", default_value = "3000" }
+RUST_LOG = { source = "${RUST_LOG}", default_value = "debug" }
+RUST_BACKTRACE = { source = "${RUST_BACKTRACE}", default_value = "1" }
+
+# 构建的连接字符串（使用上面的默认值）
+DATABASE_URL = { source = "${DATABASE_URL}", default_value = "postgresql://dev:dev@localhost:5432/translate_platform" }
+
+[tasks.default]
+alias = "help"
+
+[tasks.help]
+description = "显示可用命令"
+script = '''
+echo ""
+echo "🛠️ 可用命令："
+echo "  cargo make check       - 检查Docker、env、数据库、代码和git状态"
+echo "  cargo make status      - 查询Git, 数据库和Schema状态"
+echo "  cargo make setup-env   - 初始化环境变量文件"
+
+echo ""
+echo "💡 使用 'cargo make <命令>' 执行相应操作"
+'''
+
+[tasks.status]
+description = "查询Git, 数据库和Schema状态"
+script = '''
+echo "=== 翻译平台API项目信息 ==="
+echo ""
+
+# Git信息
+echo "📋 项目状态："
+BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "未知")
+COMMIT_HASH=$(git rev-parse --short HEAD 2>/dev/null || echo "未知")
+COMMIT_MSG=$(git log -1 --pretty=format:"%s" 2>/dev/null || echo "未知")
+echo "  当前分支: $BRANCH"
+echo "  提交哈希: $COMMIT_HASH"
+echo "  提交信息: $COMMIT_MSG"
+
+# 数据库版本信息
+echo "🗄️  数据库信息："
+PG_IMAGE=$(grep "image: postgres" docker-compose.yml | awk '{print $2}' || echo "未知")
+echo "  PostgreSQL版本: $PG_IMAGE"
+
+# Schema版本信息
+echo "📊 Schema版本："
+if [ -d "./schema" ]; then
+    MAX_VERSION=$(ls -1 ./schema/V*.sql 2>/dev/null | grep -o 'V[0-9]\+' | sort -V | tail -n1 || echo "无")
+    echo "  最大版本号: $MAX_VERSION"
+    echo "  Schema文件数: $(ls -1 ./schema/V*.sql 2>/dev/null | wc -l)"
+else
+    echo "  Schema文件夹不存在"
+fi
+'''
+
+[tasks.check]
+description = "全面系统检查"
+cwd = "make/"
+command = "makers"
+args = ["--makefile", "check.toml", "${@}"]
+
+[tasks.env]
+description = "创建一个默认环境变量文件"
+script = """
+if [ -f ".env" ]; then
+    echo "⚠️  .env 文件已存在，初始化终止。"
+    exit 1
+fi
+
+cat > .env <<EOL
+# 数据库配置
+POSTGRES_DB=translate_platform # 必要变量
+POSTGRES_USER=dev # 必要变量
+POSTGRES_PASSWORD=dev # 必要变量
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_CONTAINER_NAME=translate-platform-db
+
+# 应用配置
+APP_PORT=3000
+RUST_LOG=debug
+RUST_BACKTRACE=1
+EOL
+
+makers --makefile make/check.toml env
+
+echo "✅ .env 文件已创建并检查，内容如下："
+cat .env
+echo "💡 后续如需修改配置，可通过 'cargo make check env' 检查当前环境变量"
+"""
+
+[tasks.dev]
+description = "启动开发环境"
+cwd = "make/"
+command = "makers"
+args = ["--makefile", "dev.toml", "${@}"]

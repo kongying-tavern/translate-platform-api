@@ -1,0 +1,126 @@
+[config]
+default_to_workspace = false
+skip_core_tasks = true
+reduce_output = false
+
+[tasks.default]
+description = "全面系统检查"
+dependencies = [
+    "docker",
+    "env",
+    "db",
+    "code",
+    "git",
+]
+script = '''
+echo ""
+
+echo "🎉 系统检查完成!"
+echo ""
+echo "💡 提示:"
+echo "  - 运行 'cargo make status' 查询Git, 数据库和Schema状态"
+echo "  - 运行 'cargo make setup-env' 生成默认配置"
+'''
+
+[tasks.docker]
+description = "🐳  检查Docker状态"
+script = '''
+echo "🐳  检查Docker状态..."
+if docker --version &>/dev/null; then
+    echo "✅ Docker已安装: $(docker --version)"
+    if docker ps &>/dev/null; then
+        echo "✅ Docker运行正常"
+    else
+        echo "⚠️  Docker权限不足，请添加用户到docker组"
+    fi
+else
+    echo "❌ Docker未安装或不可访问"
+fi
+'''
+
+[tasks.env]
+description = "⚙️  检查环境配置"
+script = '''
+echo "⚙️  检查环境配置..."
+
+ENV_FILE=".env"
+# 必要环境变量列表
+REQUIRED_VARS="POSTGRES_USER POSTGRES_DB POSTGRES_PASSWORD"
+
+echo "必要环境变量列表:"
+for var in $REQUIRED_VARS; do
+    echo "  - $var"
+done
+
+if [ ! -f "$ENV_FILE" ]; then
+    echo "❌ 未找到 $ENV_FILE 文件"
+    echo "💡 可运行 'cargo make setup-env' 从默认配置创建 .env 文件"
+else
+    missing=0
+    for var in $REQUIRED_VARS; do
+        value=$(grep "^$var=" "$ENV_FILE" | cut -d'=' -f2- 2>/dev/null || echo "")
+        if [ -z "$value" ]; then
+            echo "❌ 环境变量 $var 未设置"
+            missing=1
+        fi
+    done
+    if [ "$missing" -eq 0 ]; then
+        echo "✅ 所有必要环境变量已设置"
+    fi
+fi
+'''
+
+[tasks.db]
+description = "🗄️  检查数据库状态"
+script = '''
+echo "🗄️  检查数据库状态..."
+if docker ps --format "table {{.Names}}" | grep -q "${POSTGRES_CONTAINER_NAME}"; then
+    echo "✅ PostgreSQL容器正在运行"
+    
+    # 尝试连接数据库
+    if docker exec ${POSTGRES_CONTAINER_NAME} pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} &>/dev/null; then
+        echo "✅ 数据库连接正常"
+    else
+        echo "⚠️ 数据库容器运行中但连接失败"
+    fi
+else
+    echo "ℹ️ PostgreSQL容器未运行"
+fi
+'''
+
+[tasks.code]
+description = "🦀  检查Rust项目"
+script = '''
+echo "🦀  检查Rust项目..."
+if cargo check --quiet; then
+    echo "✅ Rust项目编译检查通过"
+else
+    echo "❌ Rust项目编译检查失败"
+    exit 1
+fi
+echo ""
+'''
+
+[tasks.git]
+description = "📋  检查Git状态"
+script = '''
+echo "📋  检查Git状态..."
+if git rev-parse --git-dir &>/dev/null; then
+    BRANCH=$(git rev-parse --abbrev-ref HEAD)
+    UNCOMMITTED=$(git status --porcelain | wc -l)
+    UNPUSHED=$(git log @{u}.. --oneline 2>/dev/null | wc -l || echo "0")
+    
+    echo "  当前分支: $BRANCH"
+    echo "  未提交更改: $UNCOMMITTED 个文件"
+    echo "  未推送提交: $UNPUSHED 个提交"
+    
+    if [ "$UNCOMMITTED" -gt 0 ]; then
+        echo "⚠️ 有未提交的更改"
+    else
+        echo "✅ 工作目录干净"
+    fi
+else
+    echo "ℹ️ 不在Git仓库中"
+fi
+echo ""
+'''
