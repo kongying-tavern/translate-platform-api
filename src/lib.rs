@@ -1,70 +1,75 @@
+use std::{env, net::SocketAddr};
+use axum::{extract::DefaultBodyLimit, serve, Router};
+use tokio::net::TcpListener;
 use tracing::info;
 
-// 导入模块
 pub mod database;
 pub mod entities;
-pub mod services;
+pub mod api;
 
-// 重新导出常用类型
-pub use database::{DatabaseConfig, test_connection};
-pub use services::UserService;
+// 实例
+pub mod sys_user;
 
-/// 翻译平台API库的核心运行函数
+type Result<T> = anyhow::Result<T>;
+
+pub async fn router() -> Result<Router> {
+    let ret = Router::new()
+        // OpenAPI 文档路由
+        .route("/", axum::routing::get(|| async { "翻译平台 API" }))
+        .route("/health", axum::routing::get(health_check))
+        // .route("/openapi.json", axum::routing::get(openapi_spec)) // ai 说的，但没实现
+        // .route("/docs", axum::routing::get(swagger_ui))
+
+        .nest("/api", api::router().await?)
+
+        // .fallback(|| async { (StatusCode::NOT_IMPLEMENTED, "功能还为实现").into_response() })
+        // .layer(from_extractor::<crate::middlewares::ExtractUserAgent>())
+        // .layer(from_extractor::<crate::middlewares::ExtractIP>())
+        .layer(DefaultBodyLimit::max(1024 * 1024 * 16)); // 16 MiB
+        
+
+    Ok(ret)
+}
+
+async fn health_check() -> axum::Json<serde_json::Value> {
+    axum::Json(serde_json::json!({
+        "status": "ok",
+        "timestamp": chrono::Utc::now().to_rfc3339(),
+        "version": env!("CARGO_PKG_VERSION")
+    }))
+}
+
+pub fn get_env() -> (String, String) {
+    let postgres_db = env::var("POSTGRES_DB").expect("POSTGRES_DB is not set");
+    let postgres_user = env::var("POSTGRES_USER").expect("POSTGRES_USER is not set");
+    let postgres_password = env::var("POSTGRES_PASSWORD").expect("POSTGRES_PASSWORD is not set");
+    let postgres_host = env::var("POSTGRES_HOST").unwrap_or_else(|_| "localhost".to_string());
+    let postgres_port = env::var("POSTGRES_PORT").unwrap_or_else(|_| "5432".to_string());
+    let postgres_url = format!(
+        "postgres://{}:{}@{}:{}/{}",
+        postgres_user, postgres_password, postgres_host, postgres_port, postgres_db
+    );
+
+    let app_port = env::var("APP_PORT").unwrap_or_else(|_| "3000".to_string());
+
+    info!(
+        postgres_url = %postgres_url,
+        app_port = %app_port,
+        "已加载环境变量"
+    );
+
+    (postgres_url, app_port)
+}
+
 pub async fn run() -> anyhow::Result<()> {
-    println!("翻译平台API库正在运行...");
-    println!("Translate Platform API is running from lib!");
+    let (_postgres_url, app_port) = get_env();
 
-    let span = tracing::info_span!("初始化数据库连接");
-    let _enter = span.enter();
+    let router = router()
+        .await?
+        .into_make_service_with_connect_info::<SocketAddr>();
 
-    // 使用工厂模式初始化数据库
-    let db = DatabaseConfig::new()
-        .url("postgresql://translate_user:translate_password@localhost:5432/translate_platform")
-        .max_connections(50)
-        .min_connections(5)
-        .try_init()
-        .await?;
+    let listener = TcpListener::bind(format!("0.0.0.0:{}", app_port)).await?;
 
-    // 测试数据库连接
-    test_connection(&db).await?;
-
-    // 初始化服务
-    let user_service = UserService::new(db);
-
-    // 示例：CRUD操作
-    info!("演示CRUD操作");
-
-    // Create - 创建用户
-    user_service
-        .create(
-            "admin".to_string(),
-            "password123".to_string(),
-            1, // Admin角色
-            "Asia/Shanghai".to_string(),
-            "zh-CN".to_string(),
-            0, // 系统创建
-        )
-        .await?;
-
-    // Read - 读取用户
-    let user = user_service.read(1).await?;
-    info!("读取用户结果: {:?}", user);
-
-    // Update - 更新用户
-    user_service
-        .update(
-            1,
-            Some("new_admin".to_string()),
-            None,
-            None,
-            None,
-            None,
-            0, // 更新者ID
-        )
-        .await?;
-
-    // Delete - 删除用户
-    user_service.delete(1, 0).await?;
-
+    serve(listener, router).await?;
     Ok(())
 }

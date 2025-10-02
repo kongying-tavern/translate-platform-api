@@ -85,6 +85,7 @@ sea-orm = { version = "^1", features = [
   "sqlx-postgres",
   "runtime-tokio-rustls",
 ] }
+# utoipa = "5.4.0"
 # redis = { version = "^0.32", features = [
 #   "tokio-comp",
 #   "ahash",
