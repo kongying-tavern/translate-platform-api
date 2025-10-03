@@ -9,7 +9,7 @@ async fn main() -> anyhow::Result<()> {
         .finish()
         .init();
 
-    run().await?;
+    run(false).await?;
 
     println!("Goodbye!");
     Ok(())

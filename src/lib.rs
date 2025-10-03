@@ -1,12 +1,11 @@
+use axum::{Router, extract::DefaultBodyLimit};
 use std::{env, net::SocketAddr};
-use axum::{extract::DefaultBodyLimit, serve, Router};
 use tokio::net::TcpListener;
 use tracing::info;
 
 pub mod api;
 pub mod database;
 pub mod entities;
-pub mod api;
 
 // 实例
 pub mod sys_user;
@@ -20,14 +19,11 @@ pub async fn router() -> Result<Router> {
         .route("/health", axum::routing::get(health_check))
         // .route("/openapi.json", axum::routing::get(openapi_spec)) // ai 说的，但没实现
         // .route("/docs", axum::routing::get(swagger_ui))
-
         .nest("/api", api::router().await?)
-
         // .fallback(|| async { (StatusCode::NOT_IMPLEMENTED, "功能还为实现").into_response() })
         // .layer(from_extractor::<crate::middlewares::ExtractUserAgent>())
         // .layer(from_extractor::<crate::middlewares::ExtractIP>())
         .layer(DefaultBodyLimit::max(1024 * 1024 * 16)); // 16 MiB
-        
 
     Ok(ret)
 }
@@ -62,15 +58,24 @@ pub fn get_env() -> (String, String) {
     (postgres_url, app_port)
 }
 
-pub async fn run() -> anyhow::Result<()> {
+type RouterService =
+    axum::extract::connect_info::IntoMakeServiceWithConnectInfo<Router, SocketAddr>;
+
+/// 启动服务器，is_test 为 true 时使用端口 0
+pub async fn run(is_test: bool) -> anyhow::Result<(TcpListener, RouterService)> {
     let (_postgres_url, app_port) = get_env();
 
     let router = router()
         .await?
         .into_make_service_with_connect_info::<SocketAddr>();
 
-    let listener = TcpListener::bind(format!("0.0.0.0:{}", app_port)).await?;
+    let listener = TcpListener::bind(format!(
+        "0.0.0.0:{}",
+        if is_test { "0" } else { app_port.as_str() }
+    ))
+    .await?;
+    let addr = listener.local_addr()?;
+    info!("服务器启动在: {}", addr);
 
-    serve(listener, router).await?;
-    Ok(())
+    Ok((listener, router))
 }
