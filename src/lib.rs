@@ -3,6 +3,7 @@ use axum::{extract::DefaultBodyLimit, serve, Router};
 use tokio::net::TcpListener;
 use tracing::info;
 
+pub mod api;
 pub mod database;
 pub mod entities;
 pub mod api;
@@ -10,7 +11,7 @@ pub mod api;
 // 实例
 pub mod sys_user;
 
-type Result<T> = anyhow::Result<T>;
+pub type Result<T> = anyhow::Result<T>;
 
 pub async fn router() -> Result<Router> {
     let ret = Router::new()
