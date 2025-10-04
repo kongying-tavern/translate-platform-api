@@ -3,7 +3,7 @@ use tracing::{debug, error};
 
 use crate::{
     AppState,
-    api::v1::users::db::{DeleteError, delete_user, update_user},
+    api::v1::users::db::{DbError, delete_user, update_user},
     sys_user,
 };
 use db::{check_name_exists, insert_user};
@@ -55,7 +55,9 @@ pub async fn query(
     if !res.is_empty() {
         return Err((StatusCode::BAD_REQUEST, res));
     }
-    // TODO: 查询数据库，构造响应
+
+
+
     let response = model::QueryResponse::default();
     Ok((StatusCode::OK, Json(response)))
 }
@@ -111,17 +113,15 @@ pub async fn create(
     }
 
     match insert_user(payload, db).await {
-        Ok(_) => {}
+        Ok(_) => Ok((StatusCode::CREATED, "")),
         Err(e) => {
             error!("插入用户时出错: {}", e);
-            return Err((
+            Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "数据库插入错误".to_string(),
-            ));
+            ))
         }
     }
-
-    Ok((StatusCode::CREATED, ""))
 }
 
 #[tracing::instrument]
@@ -199,7 +199,7 @@ pub async fn delete(
 
     match delete_user(&payload.id, db).await {
         Ok(_) => Ok((StatusCode::OK, "")),
-        Err(DeleteError::NotFound) => {
+        Err(DbError::NotFound) => {
             error!("用户不存在");
             return Err((StatusCode::NOT_FOUND, "用户不存在".to_string()));
         }
