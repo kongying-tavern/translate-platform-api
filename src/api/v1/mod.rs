@@ -1,5 +1,5 @@
-mod users;
-mod oauth;
+pub mod users;
+pub mod oauth;
 
 pub async fn router() -> anyhow::Result<axum::Router> {
     let ret = axum::Router::new()

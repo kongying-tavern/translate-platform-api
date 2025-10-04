@@ -1,5 +1,6 @@
 use tracing_subscriber::util::SubscriberInitExt;
 use translate_platform_api::run;
+use axum::serve;
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> anyhow::Result<()> {
@@ -9,7 +10,8 @@ async fn main() -> anyhow::Result<()> {
         .finish()
         .init();
 
-    run(false).await?;
+    let (listener, router) = run(false).await?;
+    serve(listener, router).await?;
 
     println!("Goodbye!");
     Ok(())

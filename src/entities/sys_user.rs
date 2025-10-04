@@ -14,7 +14,7 @@ pub struct Model {
     pub del_flag: bool,
     #[sea_orm(primary_key)]
     pub id: i32,
-    pub username: String,
+    pub name: String,
     pub password: String,
     pub role: i32,
     pub timezone: String,

@@ -1,11 +1,11 @@
-use axum::{Json, http::StatusCode, response::IntoResponse};
-use tracing::debug;
+use axum::{http::StatusCode, response::IntoResponse, Extension, Json};
+use tracing::{debug, error};
 
-use crate::sys_user;
+use crate::{sys_user::{self, check_name_exists}, AppState};
 use utils::{check_field, check_option};
 
-mod model;
-mod utils;
+pub mod model;
+pub mod utils;
 
 // root:/api/v1/user
 pub async fn router() -> anyhow::Result<axum::Router> {
@@ -70,9 +70,22 @@ pub async fn query(
     ),
 )]
 pub async fn create(
+    Extension(AppState(db)): Extension<AppState>,
     Json(payload): Json<model::RegisterRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let mut res = String::new();
+
+    match check_name_exists(&payload.name, db).await {
+        Ok(exists) => {
+            if exists {
+                res.push_str("用户名已存在\n");
+            }
+        }
+        Err(e) => {
+            error!("检查用户名是否存在时出错: {}", e);
+            return Err((StatusCode::INTERNAL_SERVER_ERROR, "数据库查询错误".to_string()));
+        }
+    }
 
     check_field(&payload.name, sys_user::check_name, "用户名", &mut res);
     check_field(
@@ -85,13 +98,18 @@ pub async fn create(
     check_field(&payload.timezone, sys_user::check_tz, "时区", &mut res);
     check_field(&payload.locale, sys_user::check_lang, "语言", &mut res);
 
-    // TODO: 数据库干活
-
-    // TODO: 检查用户重复
-
     if !res.is_empty() {
         return Err((StatusCode::BAD_REQUEST, res));
     }
+
+    match sys_user::insert_user(payload, db).await {
+        Ok(_) => {}
+        Err(e) => {
+            error!("插入用户时出错: {}", e);
+            return Err((StatusCode::INTERNAL_SERVER_ERROR, "数据库插入错误".to_string()));
+        }
+    }
+
     Ok((StatusCode::CREATED, ""))
 }
 
