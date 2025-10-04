@@ -75,9 +75,9 @@ pub struct QueryResponse {
     /// 根据分页参数返回的用户简要信息列表
     #[schema(example = "[]")]
     pub users: Vec<UserBrief>,
-    /// 总数
+    /// 总页数
     #[schema(example = 0)]
-    pub total_page: u64,
+    pub total_pages: u64,
     // REVIEW: 还缺分页信息吗？
 }
 

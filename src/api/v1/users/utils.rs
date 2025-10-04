@@ -47,7 +47,7 @@ impl TryInto<sys_user::ActiveModel> for model::RegisterRequest {
             creator_id: sea_orm::Set(0),
             create_time: sea_orm::Set(Some(Utc::now().naive_utc())),
             updater_id: sea_orm::Set(0),
-            update_time: sea_orm::Set(None),
+            update_time: NotSet,
         })
     }
 }

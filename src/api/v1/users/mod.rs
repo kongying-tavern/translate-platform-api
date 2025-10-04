@@ -3,7 +3,7 @@ use tracing::{debug, error};
 
 use crate::{
     AppState,
-    api::v1::users::db::{DbError, delete_user, update_user},
+    api::v1::users::db::{DbError, delete_user, query_user, update_user},
     sys_user,
 };
 use db::{check_name_exists, insert_user};
@@ -37,6 +37,7 @@ pub async fn router() -> anyhow::Result<axum::Router> {
     ),
 )]
 pub async fn query(
+    Extension(AppState(db)): Extension<AppState>,
     Json(payload): Json<model::QueryRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let mut res = String::new();
@@ -56,10 +57,20 @@ pub async fn query(
         return Err((StatusCode::BAD_REQUEST, res));
     }
 
-
-
-    let response = model::QueryResponse::default();
-    Ok((StatusCode::OK, Json(response)))
+    match query_user(&payload, db).await {
+        Ok((users, total_pages)) => Ok((
+            StatusCode::OK,
+            Json(model::QueryResponse { users, total_pages }),
+        )),
+        Err(DbError::NotFound) => {
+            error!("分页参数错误, 页码超出范围");
+            Err((StatusCode::NOT_FOUND, "分页参数错误".to_string()))
+        }
+        Err(e) => {
+            error!("查询用户时出错: {}", e);
+            Err((StatusCode::INTERNAL_SERVER_ERROR, "服务器错误".to_string()))
+        }
+    }
 }
 
 #[tracing::instrument]

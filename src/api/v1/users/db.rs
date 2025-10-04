@@ -2,7 +2,7 @@ use anyhow::{Error, Result, anyhow};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, PaginatorTrait, QueryFilter,
-    QueryOrder, QuerySelect, QueryTrait, Set,
+    QueryOrder, QueryTrait, Set,
 };
 
 use crate::{
@@ -20,7 +20,6 @@ pub async fn check_name_exists(name: &str, db: &DB) -> Result<bool> {
     Ok(SysUser::find()
         .filter(Column::Name.eq(name))
         .filter(Column::DelFlag.eq(false))
-        .limit(1)
         .one(db)
         .await?
         .is_some())
@@ -28,6 +27,7 @@ pub async fn check_name_exists(name: &str, db: &DB) -> Result<bool> {
 
 /// 插入用户数据
 pub async fn insert_user(payload: RegisterRequest, db: &DB) -> Result<()> {
+    // TODO: 写完认证中间件后要加上 creator_id
     TryInto::<ActiveModel>::try_into(payload)?
         .insert(db)
         .await?;
@@ -105,9 +105,12 @@ pub async fn update_user(payload: UpdateRequest, db: &DB) -> Result<(), DbError>
 }
 
 /// 查询用户数据
-pub async fn query_user(payload: &QueryRequest, db: &DB) -> Result<(Vec<UserBrief>, u64)> {
+pub async fn query_user(payload: &QueryRequest, db: &DB) -> Result<(Vec<UserBrief>, u64), DbError> {
     let role = match &payload.role {
-        Some(role) => Some(role.parse::<i32>()?),
+        Some(role) => Some(
+            role.parse::<i32>()
+                .map_err(|e| DbError::DbError(anyhow!("panic: {e}")))?,
+        ),
         None => None,
     };
     let paginator = SysUser::find()
@@ -126,13 +129,19 @@ pub async fn query_user(payload: &QueryRequest, db: &DB) -> Result<(Vec<UserBrie
         .num_pages()
         .await
         .map_err(|e| DbError::DbError(e.into()))?;
+
+    if payload.page > total_pages && total_pages != 0 {
+        return Err(DbError::NotFound);
+    }
+
     let items = paginator
         .fetch_page(payload.page.saturating_sub(1))
         .await
         .map_err(|e| DbError::DbError(e.into()))?
         .par_iter()
         .map(TryInto::<UserBrief>::try_into)
-        .collect::<Result<Vec<UserBrief>, Error>>()?;
+        .collect::<Result<Vec<UserBrief>, Error>>()
+        .map_err(|e| DbError::DbError(e.into()))?;
 
     Ok((items, total_pages))
 }
