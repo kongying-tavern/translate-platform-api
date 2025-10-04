@@ -11,7 +11,6 @@ use tracing::error;
 use crate::sys_user::{AuthClaims, AuthStatus, UserRole, decode_id};
 
 // TODO: 之后换个环境变量
-// static PRIVATE_KEY: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/private.pem"));
 static PUBLIC_KEY: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/public.pem"));
 static DECODING_KEY: Lazy<DecodingKey> = Lazy::new(|| {
     DecodingKey::from_rsa_pem(PUBLIC_KEY).expect("Failed to create DecodingKey from public.pem")

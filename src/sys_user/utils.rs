@@ -1,11 +1,9 @@
 use anyhow::{Result, anyhow};
 use argon2::{
-    Argon2,
-    password_hash::{PasswordHasher, SaltString, rand_core::OsRng},
+    password_hash::{rand_core::OsRng, PasswordHasher, SaltString}, Argon2, PasswordHash, PasswordVerifier
 };
 use once_cell::sync::Lazy;
 use sqids::Sqids;
-use tokio::task;
 
 pub const VALID_PASSWORDS: [&str; 4] = [
     "Abcdef12", // 合规密码，无特殊字符
@@ -24,19 +22,25 @@ pub const INVALID_PASSWORDS: [&str; 4] = [
 static ARGON2: Lazy<Argon2<'static>> = Lazy::new(|| Argon2::default());
 
 /// 使用argon2对密码进行哈希
-pub async fn hash_password(password: String) -> Result<String> {
-    let hashed_password = task::spawn_blocking(move || {
-        let salt = SaltString::generate(&mut OsRng);
-        // 这个argon2的Result类型很奇怪啊，没法直接用?
-        ARGON2
-            .hash_password(password.as_bytes(), &salt)
-            .map(|hash| hash.to_string())
-            .map_err(|e| anyhow!("Password hashing failed: {}", e))
-    })
-    .await?;
+pub fn hash_password(password: String) -> Result<String> {
+    let salt = SaltString::generate(&mut OsRng);
+
+    // 这个argon2的Result类型很奇怪啊，没法直接用?
+    let hashed_password = ARGON2
+        .hash_password(password.as_bytes(), &salt)
+        .map(|hash| hash.to_string())
+        .map_err(|e| anyhow!("密码哈希失败: {}", e))?;
 
     // 4. 返回哈希值，准备存储到数据库
-    Ok(hashed_password?)
+    Ok(hashed_password)
+}
+
+/// 校验密码哈希
+pub fn verify_password(password: &str, hashed: &str) -> Result<bool> {
+    let parsed_hash = PasswordHash::new(hashed)
+        .map_err(|e| anyhow!("无效的密码哈希: {}", e))?;
+
+    Ok(ARGON2.verify_password(password.as_bytes(), &parsed_hash).is_ok())
 }
 
 /// 构建唯一表示符生成器

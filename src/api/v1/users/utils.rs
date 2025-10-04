@@ -3,7 +3,7 @@ use chrono::Utc;
 use sea_orm::ActiveValue::NotSet;
 use tracing::debug;
 
-use crate::{entities::sys_user, sys_user::encode_id};
+use crate::{entities::sys_user, sys_user::{encode_id, hash_password}};
 
 use super::model;
 
@@ -38,7 +38,7 @@ impl TryInto<sys_user::ActiveModel> for model::RegisterRequest {
         Ok(sys_user::ActiveModel {
             id: NotSet,
             name: sea_orm::Set(self.name),
-            password: sea_orm::Set(self.password),
+            password: sea_orm::Set(hash_password(self.password)?),
             role: sea_orm::Set(self.role.parse()?),
             timezone: sea_orm::Set(self.timezone),
             locale: sea_orm::Set(self.locale),

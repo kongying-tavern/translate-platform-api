@@ -7,7 +7,7 @@ use utoipa::ToSchema;
 pub struct LoginRequest {
     /// 用户名
     #[schema(example = "admin")] // 可选：为文档添加示例值
-    pub username: String,
+    pub name: String,
     /// 密码
     #[schema(example = "Password123")] // 可选：为文档添加示例值
     pub password: String,
