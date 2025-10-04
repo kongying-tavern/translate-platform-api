@@ -1,9 +1,9 @@
 use anyhow::{Error, Result};
+use chrono::Utc;
 use sea_orm::ActiveValue::NotSet;
 use tracing::debug;
-use chrono::Utc;
 
-use crate::{entities::sys_user};
+use crate::entities::sys_user;
 
 use super::model;
 
@@ -48,6 +48,42 @@ impl TryInto<sys_user::ActiveModel> for model::RegisterRequest {
             create_time: sea_orm::Set(Some(Utc::now().naive_utc())),
             updater_id: sea_orm::Set(0),
             update_time: sea_orm::Set(None),
+        })
+    }
+}
+
+impl TryInto<sys_user::ActiveModel> for model::UpdateRequest {
+    type Error = Error;
+
+    fn try_into(self) -> Result<sys_user::ActiveModel> {
+        Ok(sys_user::ActiveModel {
+            id: NotSet,
+            name: match self.name {
+                Some(name) => sea_orm::Set(name),
+                None => NotSet,
+            },
+            password: match self.password {
+                Some(password) => sea_orm::Set(password),
+                None => NotSet,
+            },
+            role: match self.role {
+                Some(role) => sea_orm::Set(role.parse()?),
+                None => NotSet,
+            },
+            timezone: match self.timezone {
+                Some(timezone) => sea_orm::Set(timezone),
+                None => NotSet,
+            },
+            locale: match self.locale {
+                Some(locale) => sea_orm::Set(locale),
+                None => NotSet,
+            },
+            del_flag: NotSet,
+            version: NotSet,
+            creator_id: NotSet,
+            create_time: NotSet,
+            updater_id: sea_orm::Set(0), // TODO
+            update_time: sea_orm::Set(Some(Utc::now().naive_utc())),
         })
     }
 }

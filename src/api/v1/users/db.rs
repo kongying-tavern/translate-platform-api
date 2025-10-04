@@ -1,9 +1,11 @@
 use anyhow::{Error, Result};
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, ModelTrait, QueryFilter, QuerySelect};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter, QuerySelect, Set
+};
 
 use crate::{
     DB,
-    api::v1::users::model::RegisterRequest,
+    api::v1::users::model::{RegisterRequest, UpdateRequest},
     entities::{
         prelude::SysUser,
         sys_user::{ActiveModel, Column},
@@ -45,13 +47,42 @@ pub async fn delete_user(id: &str, db: &DB) -> Result<(), DeleteError> {
         .one(db)
         .await
     {
-        Ok(Some(user)) => {
-            user.delete(db)
-                .await
-                .map_err(|e| DeleteError::DbError(e.into()))?;
+        Ok(Some(mut user)) => {
+            user.del_flag = true;
+            user.update_time = Some(chrono::Utc::now().naive_utc());
+            let active_model: ActiveModel = user.into();
+            active_model.update(db).await.map_err(|e| DeleteError::DbError(e.into()))?;
             Ok(())
         }
         Ok(None) => Err(DeleteError::NotFound.into()),
         Err(e) => Err(DeleteError::DbError(e.into())),
     }
+}
+
+pub async fn update_user(payload: UpdateRequest, db: &DB) -> Result<()> {
+    let mut user = SysUser::find_by_id(decode_id(&payload.id)?)
+        .one(db)
+        .await?
+        .ok_or_else(|| Error::msg("用户不存在"))?
+        .into_active_model();
+
+    if let Some(name) = payload.name {
+        user.name = Set(name);
+    }
+    if let Some(password) = payload.password {
+        user.password = Set(password);
+    }
+    if let Some(role) = payload.role {
+        user.role = Set(role.parse()?);
+    }
+    if let Some(timezone) = payload.timezone {
+        user.timezone = Set(timezone);
+    }
+    if let Some(locale) = payload.locale {
+        user.locale = Set(locale);
+    }
+    user.updater_id = Set(0); // TODO
+    user.update_time = Set(Some(chrono::Utc::now().naive_utc()));
+    user.update(db).await?;
+    Ok(())
 }

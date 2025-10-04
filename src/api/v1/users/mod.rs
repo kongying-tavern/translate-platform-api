@@ -3,7 +3,7 @@ use tracing::{debug, error};
 
 use crate::{
     AppState,
-    api::v1::users::db::{DeleteError, delete_user},
+    api::v1::users::db::{DeleteError, delete_user, update_user},
     sys_user,
 };
 use db::{check_name_exists, insert_user};
@@ -139,6 +139,7 @@ pub async fn create(
     ),
 )]
 pub async fn update(
+    Extension(AppState(db)): Extension<AppState>,
     Json(payload): Json<model::UpdateRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let mut res = String::new();
@@ -159,12 +160,17 @@ pub async fn update(
     check_option(&payload.locale, sys_user::check_lang, "语言", &mut res);
     check_option(&payload.timezone, sys_user::check_tz, "时区", &mut res);
 
-    // TODO: 数据库干活
-
     if !res.is_empty() {
         return Err((StatusCode::BAD_REQUEST, res));
     }
-    Ok((StatusCode::OK, ""))
+
+    match update_user(payload, db).await {
+        Ok(_) => Ok((StatusCode::OK, "")),
+        Err(e) => {
+            error!("更新用户时出错: {}", e);
+            Err((StatusCode::INTERNAL_SERVER_ERROR, "服务器错误".to_string()))
+        }
+    }
 }
 
 #[tracing::instrument]
@@ -195,17 +201,11 @@ pub async fn delete(
         Ok(_) => Ok((StatusCode::OK, "")),
         Err(DeleteError::NotFound) => {
             error!("用户不存在");
-            return Err((
-                StatusCode::NOT_FOUND,
-                "用户不存在".to_string(),
-            ));
+            return Err((StatusCode::NOT_FOUND, "用户不存在".to_string()));
         }
         Err(e) => {
             error!("删除用户时出错: {}", e);
-            return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "服务器错误".to_string(),
-            ));
+            return Err((StatusCode::INTERNAL_SERVER_ERROR, "服务器错误".to_string()));
         }
     }
 }
