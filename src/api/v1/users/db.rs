@@ -12,7 +12,7 @@ use crate::{
         prelude::SysUser,
         sys_user::{ActiveModel, Column},
     },
-    sys_user::decode_id,
+    sys_user::{decode_id, hash_password},
 };
 
 /// 检查用户名是否存在
@@ -83,7 +83,7 @@ pub async fn update_user(payload: UpdateRequest, db: &DB) -> Result<(), DbError>
         user.name = Set(name);
     }
     if let Some(password) = payload.password {
-        user.password = Set(password);
+        user.password = Set(hash_password(password).map_err(|e| DbError::DbError(e.into()))?);
     }
     if let Some(role) = payload.role {
         user.role = Set(role
