@@ -1,9 +1,15 @@
-use axum::{http::StatusCode, response::IntoResponse, Extension, Json};
+use axum::{Extension, Json, http::StatusCode, response::IntoResponse};
 use tracing::{debug, error};
 
-use crate::{sys_user::{self, check_name_exists}, AppState};
+use crate::{
+    AppState,
+    api::v1::users::db::{DeleteError, delete_user},
+    sys_user,
+};
+use db::{check_name_exists, insert_user};
 use utils::{check_field, check_option};
 
+pub mod db;
 pub mod model;
 pub mod utils;
 
@@ -13,8 +19,7 @@ pub async fn router() -> anyhow::Result<axum::Router> {
         .route("/", axum::routing::get(query))
         .route("/", axum::routing::post(create))
         .route("/", axum::routing::put(update))
-        .route("/", axum::routing::delete(delete))
-        ;
+        .route("/", axum::routing::delete(delete));
     Ok(ret)
 }
 
@@ -83,7 +88,10 @@ pub async fn create(
         }
         Err(e) => {
             error!("检查用户名是否存在时出错: {}", e);
-            return Err((StatusCode::INTERNAL_SERVER_ERROR, "数据库查询错误".to_string()));
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "数据库查询错误".to_string(),
+            ));
         }
     }
 
@@ -102,11 +110,14 @@ pub async fn create(
         return Err((StatusCode::BAD_REQUEST, res));
     }
 
-    match sys_user::insert_user(payload, db).await {
+    match insert_user(payload, db).await {
         Ok(_) => {}
         Err(e) => {
             error!("插入用户时出错: {}", e);
-            return Err((StatusCode::INTERNAL_SERVER_ERROR, "数据库插入错误".to_string()));
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "数据库插入错误".to_string(),
+            ));
         }
     }
 
@@ -166,11 +177,12 @@ pub async fn update(
         (status = 200, description = "成功"),
         (status = 400, description = "请求错误", body = String),
         (status = 401, description = "未授权"),
-        (status = 409, description = "用户不存在"),
+        (status = 404, description = "用户不存在"),
         (status = 500, description = "服务器错误"),
     ),
 )]
 pub async fn delete(
+    Extension(AppState(db)): Extension<AppState>,
     Json(payload): Json<model::DeleteRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let mut res = String::new();
@@ -179,7 +191,21 @@ pub async fn delete(
         return Err((StatusCode::BAD_REQUEST, res));
     }
 
-    // TODO: 数据库干活
-
-    Ok((StatusCode::OK, ""))
+    match delete_user(&payload.id, db).await {
+        Ok(_) => Ok((StatusCode::OK, "")),
+        Err(DeleteError::NotFound) => {
+            error!("用户不存在");
+            return Err((
+                StatusCode::NOT_FOUND,
+                "用户不存在".to_string(),
+            ));
+        }
+        Err(e) => {
+            error!("删除用户时出错: {}", e);
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "服务器错误".to_string(),
+            ));
+        }
+    }
 }

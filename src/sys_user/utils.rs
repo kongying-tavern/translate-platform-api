@@ -43,6 +43,22 @@ pub async fn hash_password(password: String) -> Result<String> {
 /// 默认字母混合，可能有问题
 pub static SQIDS: Lazy<Sqids> = Lazy::new(|| Sqids::builder().min_length(8).build().unwrap());
 
+/// 从数据库自增id到混淆id
+pub fn encode_id(id: i64) -> Result<String> {
+    SQIDS
+        .encode(&[id as u64])
+        .map_err(|e| anyhow!("ID编码失败, {e}"))
+}
+
+/// 从混淆id到数据库自增id
+pub fn decode_id(sid: &str) -> Result<i32> {
+    SQIDS
+        .decode(sid)
+        .get(0)
+        .map(|&id| id as i32)
+        .ok_or_else(|| anyhow!("ID解码失败"))
+}
+
 pub use verify::*;
 
 mod verify {
@@ -51,7 +67,7 @@ mod verify {
     /// 主键检查
     /// 基于sqids解码后的自增主键小于最大支持用户数
     pub fn check_id(id: &str) -> bool {
-        SQIDS.decode(id).get(0).map_or(MAX_USER+1, |f| *f) < MAX_USER
+        SQIDS.decode(id).get(0).map_or(MAX_USER + 1, |f| *f) < MAX_USER
     }
 
     /// 密码检查

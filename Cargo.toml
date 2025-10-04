@@ -89,6 +89,7 @@ sea-orm = { version = "^1", features = [
 ] }
 utoipa = "^5.4"
 unic-langid = "0.9.6"
+thiserror = "2.0.17"
 # utoipa-axum = "^0.2"
 # redis = { version = "^0.32", features = [
 #   "tokio-comp",

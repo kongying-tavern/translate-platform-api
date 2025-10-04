@@ -1,9 +1,7 @@
 use strum::EnumString;
 
-mod db;
 mod utils;
 
-pub use db::*;
 pub use utils::*;
 
 // REVIEW: 前端请求中我想校验用户主键是否合法，方法是解码uuid（前端看到的是8长的字符串）后得
