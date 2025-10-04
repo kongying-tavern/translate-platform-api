@@ -1,9 +1,9 @@
 DROP TABLE IF EXISTS sys_user;
 CREATE TABLE sys_user(
     version INTEGER NOT NULL DEFAULT  1,
-    creator_id BIGINT NOT NULL DEFAULT  0,
+    creator_id INTEGER NOT NULL DEFAULT  0,
     create_time TIMESTAMP,
-    updater_id BIGINT NOT NULL DEFAULT  0,
+    updater_id INTEGER NOT NULL DEFAULT  0,
     update_time TIMESTAMP,
     del_flag BOOLEAN NOT NULL DEFAULT  false,
     id SERIAL NOT NULL,

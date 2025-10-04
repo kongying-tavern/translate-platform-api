@@ -1,11 +1,13 @@
 use anyhow::{Error, Result, anyhow};
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter, QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect, QueryTrait, Set,
 };
 
 use crate::{
     DB,
-    api::v1::users::model::{RegisterRequest, UpdateRequest},
+    api::v1::users::model::{QueryRequest, RegisterRequest, UpdateRequest, UserBrief},
     entities::{
         prelude::SysUser,
         sys_user::{ActiveModel, Column},
@@ -100,4 +102,37 @@ pub async fn update_user(payload: UpdateRequest, db: &DB) -> Result<(), DbError>
         .await
         .map_err(|e| DbError::DbError(e.into()))?;
     Ok(())
+}
+
+/// 查询用户数据
+pub async fn query_user(payload: &QueryRequest, db: &DB) -> Result<(Vec<UserBrief>, u64)> {
+    let role = match &payload.role {
+        Some(role) => Some(role.parse::<i32>()?),
+        None => None,
+    };
+    let paginator = SysUser::find()
+        .apply_if(payload.name.as_ref(), |q, v| q.filter(Column::Name.eq(v)))
+        .apply_if(role, |q, v| q.filter(Column::Role.eq(v)))
+        .apply_if(payload.timezone.as_ref(), |q, v| {
+            q.filter(Column::Timezone.eq(v))
+        })
+        .apply_if(payload.locale.as_ref(), |q, v| {
+            q.filter(Column::Locale.eq(v))
+        })
+        .order_by_asc(Column::Id)
+        .paginate(db, payload.per_page);
+
+    let total_pages = paginator
+        .num_pages()
+        .await
+        .map_err(|e| DbError::DbError(e.into()))?;
+    let items = paginator
+        .fetch_page(payload.page.saturating_sub(1))
+        .await
+        .map_err(|e| DbError::DbError(e.into()))?
+        .par_iter()
+        .map(TryInto::<UserBrief>::try_into)
+        .collect::<Result<Vec<UserBrief>, Error>>()?;
+
+    Ok((items, total_pages))
 }

@@ -44,7 +44,7 @@ pub async fn hash_password(password: String) -> Result<String> {
 pub static SQIDS: Lazy<Sqids> = Lazy::new(|| Sqids::builder().min_length(8).build().unwrap());
 
 /// 从数据库自增id到混淆id
-pub fn encode_id(id: i64) -> Result<String> {
+pub fn encode_id(id: i32) -> Result<String> {
     SQIDS
         .encode(&[id as u64])
         .map_err(|e| anyhow!("ID编码失败, {e}"))

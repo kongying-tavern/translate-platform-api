@@ -75,6 +75,10 @@ pub struct QueryResponse {
     /// 根据分页参数返回的用户简要信息列表
     #[schema(example = "[]")]
     pub users: Vec<UserBrief>,
+    /// 总数
+    #[schema(example = 0)]
+    pub total_page: u64,
+    // REVIEW: 还缺分页信息吗？
 }
 
 /// 用户简要信息
@@ -89,19 +93,19 @@ pub struct UserBrief {
     /// 用户名
     /// 长度8-32，只能包含字母、数字、下划线，且必须以字母开头
     #[schema(example = "updateduser")]
-    pub username: String,
+    pub name: String,
     /// 角色
     /// 目前1（管理员）和2（普通用户）
     #[schema(example = "1")]
-    pub role: Option<String>,
+    pub role: String,
     /// 偏好时区
     /// IANA时区标识符，如Asia/Shanghai、America/New_York
     #[schema(example = "Asia/Shanghai")]
-    pub timezone: Option<String>,
+    pub timezone: String,
     /// 偏好语言
     /// BCP 47语言标签，如zh-CN、en-US、ja-JP
     #[schema(example = "zh-CN")]
-    pub locale: Option<String>,
+    pub locale: String,
 }
 
 /// 查询请求体

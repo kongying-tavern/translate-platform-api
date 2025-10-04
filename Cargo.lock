@@ -4052,6 +4052,7 @@ dependencies = [
  "once_cell",
  "oneshot",
  "percent-encoding",
+ "rayon",
  "reqwest",
  "sea-orm",
  "serde",
