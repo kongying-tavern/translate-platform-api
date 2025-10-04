@@ -4,12 +4,13 @@ use tracing::{debug, error};
 use crate::{
     AppState,
     api::v1::users::db::{DbError, delete_user, query_user, update_user},
-    sys_user,
+    sys_user::{self, AuthStatus},
 };
 use db::{check_name_exists, insert_user};
 use utils::{check_field, check_option};
 
 pub mod db;
+pub mod middleware;
 pub mod model;
 pub mod utils;
 
@@ -19,7 +20,8 @@ pub async fn router() -> anyhow::Result<axum::Router> {
         .route("/", axum::routing::get(query))
         .route("/", axum::routing::post(create))
         .route("/", axum::routing::put(update))
-        .route("/", axum::routing::delete(delete));
+        .route("/", axum::routing::delete(delete))
+        .layer(axum::middleware::from_fn(middleware::auth));
     Ok(ret)
 }
 
@@ -89,9 +91,14 @@ pub async fn query(
 )]
 pub async fn create(
     Extension(AppState(db)): Extension<AppState>,
+    Extension(auth): Extension<AuthStatus>,
     Json(payload): Json<model::RegisterRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let mut res = String::new();
+
+    if auth.role != sys_user::UserRole::Admin {
+        return Err((StatusCode::UNAUTHORIZED, "".to_string()));
+    }
 
     match check_name_exists(&payload.name, db).await {
         Ok(exists) => {
@@ -151,12 +158,19 @@ pub async fn create(
 )]
 pub async fn update(
     Extension(AppState(db)): Extension<AppState>,
+    Extension(auth): Extension<AuthStatus>,
     Json(payload): Json<model::UpdateRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let mut res = String::new();
-    if !sys_user::check_id(&payload.id) {
-        debug!("用户ID格式错误: {}", payload.id);
-        res.push_str("用户ID格式错误\n");
+
+    if auth.role != sys_user::UserRole::Admin
+        && auth.id != sys_user::decode_id(&payload.id).unwrap_or(-1)
+    {
+        debug!(
+            "非管理员用户只能更新自己的信息: {}, {}",
+            auth.id, payload.id
+        );
+        return Err((StatusCode::UNAUTHORIZED, "".to_string()));
     }
 
     check_field(&payload.id, sys_user::check_id, "用户ID", &mut res);
@@ -200,9 +214,21 @@ pub async fn update(
 )]
 pub async fn delete(
     Extension(AppState(db)): Extension<AppState>,
+    Extension(auth): Extension<AuthStatus>,
     Json(payload): Json<model::DeleteRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let mut res = String::new();
+
+    if auth.role != sys_user::UserRole::Admin
+        && auth.id != sys_user::decode_id(&payload.id).unwrap_or(-1)
+    {
+        debug!(
+            "非管理员用户只能更新自己的信息: {}, {}",
+            auth.id, payload.id
+        );
+        return Err((StatusCode::UNAUTHORIZED, "".to_string()));
+    }
+
     check_field(&payload.id, sys_user::check_id, "用户ID", &mut res);
     if !res.is_empty() {
         return Err((StatusCode::BAD_REQUEST, res));

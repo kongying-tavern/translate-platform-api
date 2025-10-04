@@ -31,10 +31,12 @@ if docker --version &>/dev/null; then
     if docker ps &>/dev/null; then
         echo "✅ Docker运行正常"
     else
-        echo "⚠️  Docker权限不足，请添加用户到docker组"
+        echo "❌ Docker权限不足，请添加用户到docker组"
+        exit 1
     fi
 else
     echo "❌ Docker未安装或不可访问"
+    exit 1
 fi
 '''
 
@@ -56,12 +58,11 @@ if [ ! -f "$ENV_FILE" ]; then
     echo "❌ 未找到 $ENV_FILE 文件"
     echo "💡 可运行 'cargo make setup-env' 从默认配置创建 .env 文件"
 else
-    missing=0
     for var in $REQUIRED_VARS; do
         value=$(grep "^$var=" "$ENV_FILE" | cut -d'=' -f2- 2>/dev/null || echo "")
         if [ -z "$value" ]; then
             echo "❌ 环境变量 $var 未设置"
-            missing=1
+            exit 1
         fi
     done
     if [ "$missing" -eq 0 ]; then
@@ -82,6 +83,7 @@ if docker ps --format "table {{.Names}}" | grep -q "${POSTGRES_CONTAINER_NAME}";
         echo "✅ 数据库连接正常"
     else
         echo "⚠️ 数据库容器运行中但连接失败"
+        exit 1
     fi
 else
     echo "ℹ️ PostgreSQL容器未运行"
@@ -116,11 +118,40 @@ if git rev-parse --git-dir &>/dev/null; then
     
     if [ "$UNCOMMITTED" -gt 0 ]; then
         echo "⚠️ 有未提交的更改"
+        exit 1
     else
         echo "✅ 工作目录干净"
     fi
 else
     echo "ℹ️ 不在Git仓库中"
+    exit 1
 fi
 echo ""
+'''
+
+[tasks.pem]
+description = "🔐  检查密钥文件"
+script = '''
+echo "🔐  检查密钥文件..."
+if [ -f "private.pem" ] && [ -f "public.pem" ]; then
+    echo "✅ 密钥文件存在"
+    # 检查私钥格式
+    if openssl rsa -in private.pem -check -noout &>/dev/null; then
+        echo "✅ 私钥格式有效"
+    else
+        echo "❌ 私钥格式无效"
+        exit 1
+    fi
+    # 检查公钥格式
+    if openssl rsa -in public.pem -pubin -noout &>/dev/null; then
+        echo "✅ 公钥格式有效"
+    else
+        echo "❌ 公钥格式无效"
+        exit 1
+    fi
+else
+    echo "❌ 缺少密钥文件"
+    echo "💡 可运行 'cargo make pem' 生成密钥文件"
+    exit 1
+fi
 '''

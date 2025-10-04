@@ -9,7 +9,7 @@ pub struct LoginRequest {
     #[schema(example = "admin")] // 可选：为文档添加示例值
     pub username: String,
     /// 密码
-    #[schema(example = "password123")] // 可选：为文档添加示例值
+    #[schema(example = "Password123")] // 可选：为文档添加示例值
     pub password: String,
 }
 
@@ -19,10 +19,7 @@ pub struct LoginRequest {
 pub struct LoginResponse {
     /// jwt令牌
     #[schema(example = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")]
-    pub token: String,
-    /// 密钥
-    #[schema(example = "Todo...")]
-    pub secret: String,
+    pub access_token: String,
 }
 
 /// 刷新令牌请求

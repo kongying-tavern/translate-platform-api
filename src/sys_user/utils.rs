@@ -51,9 +51,9 @@ pub fn encode_id(id: i32) -> Result<String> {
 }
 
 /// 从混淆id到数据库自增id
-pub fn decode_id(sid: &str) -> Result<i32> {
+pub fn decode_id<S: AsRef<str>>(sid: S) -> Result<i32> {
     SQIDS
-        .decode(sid)
+        .decode(sid.as_ref())
         .get(0)
         .map(|&id| id as i32)
         .ok_or_else(|| anyhow!("ID解码失败"))

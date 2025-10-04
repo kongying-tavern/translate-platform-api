@@ -110,3 +110,18 @@ description = "启动开发环境"
 cwd = "make/"
 command = "makers"
 args = ["--makefile", "dev.toml", "${@}"]
+
+[tasks.pem]
+description = "生成密钥文件"
+script = '''
+# 仅在 private.pem 和 public.pem 不存在时生成
+if [ ! -f "private.pem" ] || [ ! -f "public.pem" ]; then
+    # 生成私钥
+    openssl genpkey -algorithm RSA -out private.pem -pkeyopt rsa_keygen_bits:2048
+    # 生成公钥
+    openssl rsa -pubout -in private.pem -out public.pem
+    echo "✅ 已生成 private.pem 和 public.pem"
+else
+    echo "⚠️  已存在 private.pem 和 public.pem，无需重新生成"
+fi
+'''
